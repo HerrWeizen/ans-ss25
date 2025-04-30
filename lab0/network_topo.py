@@ -1,4 +1,4 @@
-"""
+    """
  Copyright (c) 2025 Computer Networks Group @ UPB
 
  Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -22,6 +22,8 @@
 #!/usr/bin/python
 
 from mininet.topo import Topo
+from mininet.node import OVSBridge
+from mininet.link import TCLink
 
 class BridgeTopo(Topo):
     "Creat a bridge-like customized network topology according to Figure 1 in the lab0 description."
@@ -29,7 +31,22 @@ class BridgeTopo(Topo):
     def __init__(self):
 
         Topo.__init__(self)
-
-        # TODO: add nodes and links to construct the topology; remember to specify the link properties
-
+        
+        hosts = {}
+        for i in range(1,5):
+            hosts[f"h{i}"] = self.addHost(name=f"h{i}", ip=f"10.0.0.{i}/24")
+        
+        switches = {}
+        for i in range(1,3):
+            switches[f"s{i}"] = self.addSwitch(name=f"s{i}", cls=OVSBridge)
+        
+        #host-switch links
+        self.addLink(hosts["h1"], switches["s1"], cls=TCLink, bw=15, delay="10ms")
+        self.addLink(hosts["h2"], switches["s1"], cls=TCLink, bw=15, delay="10ms")        
+        self.addLink(hosts["h3"], switches["s2"], cls=TCLink, bw=15, delay="10ms")        
+        self.addLink(hosts["h4"], switches["s2"], cls=TCLink, bw=15, delay="10ms")
+        
+        #switch link
+        self.addLink(switches["s1"], switches["s2"], cls=TCLink, bw=20, delay="45ms")
+        
 topos = {'bridge': (lambda: BridgeTopo())}
