@@ -109,7 +109,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         # Was abgeschickt werden soll
         forward = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
-                                                       in_port=msg.in_port, actions=actions,
+                                                       in_port=in_port, actions=actions,
                                                        data=msg.data)
         
         # Datapath sagen, schick den scheiß
