@@ -40,8 +40,8 @@ class NetworkTopo(Topo):
 
         s1 = self.addSwitch(name="s1")
 
-        self.addLink(h1, s1, cls = TCLink)
-        self.addLink(h2, s1, cls = TCLink)
+        self.addLink(h1, s1, cls = TCLink, bw=15, delay="10ms")
+        self.addLink(h2, s1, cls = TCLink, bw=15, delay="10ms")
         
 def run():
     topo = NetworkTopo()
