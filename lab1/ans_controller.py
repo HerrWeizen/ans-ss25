@@ -65,7 +65,8 @@ class LearningSwitch(app_manager.RyuApp):
     # Handle the packet_in event, Happens only when there is no flow-rule
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev): # wtf is ev?
-        
+        self.logger.info(f"Received message type: {type(ev.msg)}")
+        print(type(ev.msg))
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -87,7 +88,7 @@ class LearningSwitch(app_manager.RyuApp):
         if dpid not in self.mac_to_port:
             self.mac_to_port[dpid] = {}
         
-        # create the MAC - Port entry
+        # create the MAC - Port entry#
         self.mac_to_port[dpid][src_MAC] = msg.in_port
 
         # look if the destination is present in the mac - port table for the switch, if not flood all ports
