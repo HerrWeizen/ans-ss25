@@ -38,7 +38,7 @@ class NetworkTopo(Topo):
         h1 = self.addHost(name="h1", ip=f"10.0.1.2/24")
         h2 = self.addHost(name="h2", ip=f"10.0.1.3/24")
 
-        s1 = self.addSwitch(name="s1", cls=OVSKernelSwitch)
+        s1 = self.addSwitch(name="s1")
 
         self.addLink(h1, s1, cls = TCLink)
         self.addLink(h2, s1, cls = TCLink)
