@@ -104,7 +104,7 @@ class LearningSwitch(app_manager.RyuApp):
             response = ofproto.OFPP_FLOOD # flood all ports
 
         ## Okay, also n die flowregel wurde gesetzt, jetzt muss man das scheiß ding auch noch selbst weiter leiten weil alles doof
-        response = self.mac_to_port[dpid][dst_MAC]
+        ##response = self.mac_to_port[dpid][dst_MAC]
         actions = [datapath.ofproto_parser.OFPActionOutput(response)]
 
         # Was abgeschickt werden soll
