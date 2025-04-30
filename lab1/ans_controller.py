@@ -89,7 +89,8 @@ class LearningSwitch(app_manager.RyuApp):
             self.mac_to_port[dpid] = {}
         
         # create the MAC - Port entry#
-        self.mac_to_port[dpid][src_MAC] = msg.in_port
+        #self.mac_to_port[dpid][src_MAC] = msg.in_port
+        self.mac_to_port[dpid][src_MAC] = msg.match['in_port']
 
         # look if the destination is present in the mac - port table for the switch, if not flood all ports
         if dst_MAC in self.mac_to_port[dpid]:
