@@ -194,6 +194,7 @@ class LearningSwitch(app_manager.RyuApp):
                     break
 
     def router_ip_logic(self, msg):
+
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -209,6 +210,8 @@ class LearningSwitch(app_manager.RyuApp):
 
         dst_ip = ip_pkt.dst
         src_ip = ip_pkt.src
+
+        self.logger.info(f"Router received IP packet from {src_ip} to {dst_ip}")
 
         # Check which router port the packet arrived on
         incoming_subnet = None
@@ -253,8 +256,7 @@ class LearningSwitch(app_manager.RyuApp):
         self.add_flow(datapath, 2, match, actions)
 
     def get_dst_mac_for_ip(self, ip):
-        dst_port = None
         for port, ip_search in self.port_to_own_ip.items():
             if ip_search == ip:
-                dst_port = port
-        return port_to_own_mac[dst_port]
+                return self.port_to_own_mac[port]
+        return "ff:ff:ff:ff:ff:ff"  # fallback broadcast (oder None mit Log)
