@@ -48,9 +48,9 @@ class NetworkTopo(Topo):
         self.addLink(h2, s1, cls = TCLink, bw=15, delay="10ms")
         self.addLink(ser, s2, cls = TCLink, bw=15, delay="10ms")
 
-        self.addLink(s3, s1, intfName1='r-eth1', cls = TCLink, bw=15, delay="10ms", params1={'mac': '00:00:00:00:01:01'})
-        self.addLink(s3, s2, intfName1='r-eth2', cls = TCLink, bw=15, delay="10ms", params1={'mac': '00:00:00:00:01:02'})
-        self.addLink(s3, ext, intfName1='r-eth3', cls = TCLink, bw=15, delay="10ms", params1={'mac': '00:00:00:00:01:03'})
+        self.addLink(ext, s3, intfName2='r-eth0', cls = TCLink, bw=15, delay="10ms")
+        self.addLink(s1, s3, cls = TCLink, bw=15, delay="10ms", intfName2="s1-s3")
+        self.addLink(s2, s3, cls = TCLink, bw=15, delay="10ms", intfName2="s1-s3")
 
 
 
@@ -66,6 +66,11 @@ def run():
         controller=RemoteController, 
         ip="127.0.0.1", 
         port=6653)
+    s3 = net.get('s3')
+
+    s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
+    s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
+    s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
     net.start()
     CLI(net)
     net.stop()
