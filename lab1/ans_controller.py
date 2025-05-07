@@ -255,6 +255,6 @@ class LearningSwitch(app_manager.RyuApp):
     def get_dst_mac_for_ip(self, ip):
         dst_port = None
         for port, ip_search in self.port_to_own_ip.items():
-            if ip_search = ip:
+            if ip_search == ip:
                 dst_port = port
         return port_to_own_mac[dst_port]
