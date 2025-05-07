@@ -98,6 +98,7 @@ class LearningSwitch(app_manager.RyuApp):
         if dst_MAC not in self.detect_router:
             self.switch_logic(msg)
         else:
+            print(eth.ethertype)
             if eth.ethertype == ether_types.ETH_TYPE_ARP:
                 self.router_arp_logic(msg)
             elif eth.ethertype == ether_types.ETH_TYPE_IP:
