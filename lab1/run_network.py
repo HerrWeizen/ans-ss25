@@ -37,12 +37,28 @@ class NetworkTopo(Topo):
 
         h1 = self.addHost(name="h1", ip=f"10.0.1.2/24")
         h2 = self.addHost(name="h2", ip=f"10.0.1.3/24")
+        ext = self.addHost(name="ext", ip=f"192.168.1.123/24")
+        ser = self.addHost(name="ser", ip=f"10.0.2.2/24")
 
         s1 = self.addSwitch(name="s1")
+        s2 = self.addSwitch(name="s2")
+        s3 = self.addSwitch(name="s3")
 
         self.addLink(h1, s1, cls = TCLink, bw=15, delay="10ms")
         self.addLink(h2, s1, cls = TCLink, bw=15, delay="10ms")
-        
+        self.addLink(ser, s2, cls = TCLink, bw=15, delay="10ms")
+
+        self.addLink(ext, s3, cls = TCLink, bw=15, delay="10ms", intfName="ext-s3")
+        self.addLink(s1, s3, cls = TCLink, bw=15, delay="10ms", intfName="s1-s3")
+        self.addLink(s2, s3, cls = TCLink, bw=15, delay="10ms", intfName="s1-s3")
+
+        s3 = net.get('s3')
+
+        s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
+        s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
+        s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
+
+
 def run():
     topo = NetworkTopo()
     net = Mininet(topo=topo,
