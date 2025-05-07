@@ -99,9 +99,9 @@ class LearningSwitch(app_manager.RyuApp):
             self.switch_logic(msg)
         else:
             if eth.ethertype == ether_types.ETH_TYPE_ARP:
-                self.handle_router_arp(msg)
+                self.router_arp_logic(msg)
             elif eth.ethertype == ether_types.ETH_TYPE_IP:
-                self.handle_router_ip(msg)
+                self.router_ip_logic(msg)
 
     def switch_logic(self, msg):
 
@@ -151,6 +151,20 @@ class LearningSwitch(app_manager.RyuApp):
         
         # Datapath sagen, schick den scheiß
         datapath.send_msg(forward)
+
+    def _send_packet(self, datapath, port, pkt):
+    ofproto = datapath.ofproto
+    parser = datapath.ofproto_parser
+    data = pkt.data if isinstance(pkt, packet.Packet) else pkt
+    actions = [parser.OFPActionOutput(port)]
+    out = parser.OFPPacketOut(
+        datapath=datapath,
+        buffer_id=ofproto.OFP_NO_BUFFER,
+        in_port=ofproto.OFPP_CONTROLLER,
+        actions=actions,
+        data=data
+    )
+    datapath.send_msg(out)
 
     def router_arp_logic(self, msg):
         pkt = packet.Packet(msg.data)
@@ -212,13 +226,13 @@ class LearningSwitch(app_manager.RyuApp):
         # Case 2: Destination IP is external (e.g., Internet)
         else:
             # Default route (e.g., send to Port 3 as gateway)
-            out_port = 3  # Assume Port 3 connects to the Internet
+            out_port = 3  # connects to internet
             actions = [parser.OFPActionOutput(out_port)]
 
         # Rewrite MAC addresses (Router replaces src/dst MAC)
         new_eth = ethernet.ethernet(
             src=self.port_to_own_mac[out_port],  # Router's MAC for the out_port
-            dst=self._get_dst_mac_for_ip(dst_ip),  # Requires ARP cache (see below)
+            dst=self.get_dst_mac_for_ip(dst_ip),  # Requires ARP cache (see below)
             ethertype=eth.ethertype
         )
 
@@ -237,3 +251,10 @@ class LearningSwitch(app_manager.RyuApp):
             ipv4_dst=dst_ip
         )
         self.add_flow(datapath, 2, match, actions)
+
+    def get_dst_mac_for_ip(self, ip):
+        dst_port = None
+        for port, ip_search in self.port_to_own_ip.items():
+            if ip_search = ip:
+                dst_port = port
+        return port_to_own_mac[dst_port]
