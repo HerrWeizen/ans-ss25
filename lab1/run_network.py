@@ -48,9 +48,9 @@ class NetworkTopo(Topo):
         self.addLink(h2, s1, cls = TCLink, bw=15, delay="10ms")
         self.addLink(ser, s2, cls = TCLink, bw=15, delay="10ms")
 
-        self.addLink(s3, s1, intfName2='r-eth1', cls = TCLink, bw=15, delay="10ms", params2={'mac': '00:00:00:00:01:01'})
-        self.addLink(s3, s2, intfName2='r-eth2', cls = TCLink, bw=15, delay="10ms", params2={'mac': '00:00:00:00:01:02'})
-        self.addLink(s3, ext, intfName2='r-eth3', cls = TCLink, bw=15, delay="10ms", params2={'mac': '00:00:00:00:01:03'})
+        self.addLink(s3, s1, intfName1='r-eth1', cls = TCLink, bw=15, delay="10ms", params1={'mac': '00:00:00:00:01:01'})
+        self.addLink(s3, s2, intfName1='r-eth2', cls = TCLink, bw=15, delay="10ms", params1={'mac': '00:00:00:00:01:02'})
+        self.addLink(s3, ext, intfName1='r-eth3', cls = TCLink, bw=15, delay="10ms", params1={'mac': '00:00:00:00:01:03'})
 
 
 
