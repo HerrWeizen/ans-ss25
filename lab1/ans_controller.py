@@ -153,18 +153,18 @@ class LearningSwitch(app_manager.RyuApp):
         datapath.send_msg(forward)
 
     def _send_packet(self, datapath, port, pkt):
-    ofproto = datapath.ofproto
-    parser = datapath.ofproto_parser
-    data = pkt.data if isinstance(pkt, packet.Packet) else pkt
-    actions = [parser.OFPActionOutput(port)]
-    out = parser.OFPPacketOut(
-        datapath=datapath,
-        buffer_id=ofproto.OFP_NO_BUFFER,
-        in_port=ofproto.OFPP_CONTROLLER,
-        actions=actions,
-        data=data
-    )
-    datapath.send_msg(out)
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        data = pkt.data if isinstance(pkt, packet.Packet) else pkt
+        actions = [parser.OFPActionOutput(port)]
+        out = parser.OFPPacketOut(
+            datapath=datapath,
+            buffer_id=ofproto.OFP_NO_BUFFER,
+            in_port=ofproto.OFPP_CONTROLLER,
+            actions=actions,
+            data=data
+        )
+        datapath.send_msg(out)
 
     def router_arp_logic(self, msg):
         pkt = packet.Packet(msg.data)
