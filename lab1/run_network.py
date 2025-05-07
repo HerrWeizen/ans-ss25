@@ -52,11 +52,7 @@ class NetworkTopo(Topo):
         self.addLink(s1, s3, cls = TCLink, bw=15, delay="10ms", intfName="s1-s3")
         self.addLink(s2, s3, cls = TCLink, bw=15, delay="10ms", intfName="s1-s3")
 
-        s3 = net.get('s3')
 
-        s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
-        s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
-        s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
 
 
 def run():
@@ -70,6 +66,11 @@ def run():
         controller=RemoteController, 
         ip="127.0.0.1", 
         port=6653)
+    s3 = net.get('s3')
+
+    s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
+    s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
+    s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
     net.start()
     CLI(net)
     net.stop()
