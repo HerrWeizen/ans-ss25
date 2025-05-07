@@ -48,7 +48,7 @@ class NetworkTopo(Topo):
         self.addLink(h2, s1, cls = TCLink, bw=15, delay="10ms")
         self.addLink(ser, s2, cls = TCLink, bw=15, delay="10ms")
 
-        self.addLink(ext, s3, intfName2='ext-s3', cls = TCLink, bw=15, delay="10ms")
+        self.addLink(ext, s3, cls = TCLink, bw=15, delay="10ms", intfName2="ext-s3")
         self.addLink(s1, s3, cls = TCLink, bw=15, delay="10ms", intfName2="s1-s3")
         self.addLink(s2, s3, cls = TCLink, bw=15, delay="10ms", intfName2="s2-s3")
 
