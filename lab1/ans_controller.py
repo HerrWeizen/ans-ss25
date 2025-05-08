@@ -218,3 +218,4 @@ class LearningSwitch(app_manager.RyuApp):
 
         # Send the packet-out message to the switch
         datapath.send_msg(packet_out)
+        self.logger.info(f"{self.mac_to_port}")
