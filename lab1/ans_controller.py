@@ -115,7 +115,7 @@ class LearningSwitch(app_manager.RyuApp):
         else:
             self.logger.info("Paket von Switch DPID %s empfangen", dpid)
             # Hier Ihre Switch-Logik implementieren (z.B. MAC Learning)
-            self._handle_switch_packet(datapath, pkt, data, eth_pkt, in_port)
+            self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
     def handle_arp(self, datapath, in_port, eth_pkt, arp_pkt):
         if not arp_pkt:
