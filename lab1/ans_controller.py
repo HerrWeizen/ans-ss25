@@ -28,67 +28,62 @@ from ryu.lib.packet import ethernet, arp, ipv4, ether_types, packet # https://ry
 
 
 class LearningSwitch(app_manager.RyuApp):
-    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION] # Unterstütze OpenFlow 1.3 protokoll für switch / controller communication
+    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
     def __init__(self, *args, **kwargs):
         super(LearningSwitch, self).__init__(*args, **kwargs)
-
-        # Tabelle für MAC/Ports
+        
+        # Layer 2: MAC Learning Table
         self.mac_to_port = {}
 
+        # Layer 3: Router Configuration
         self.GATEWAY_IPS = {
             "10.0.1.1",    # Gateway für 10.0.1.0/24
             "10.0.2.1",    # Gateway für 10.0.2.0/24
             "192.168.1.1"  # Gateway für 192.168.1.0/24
         }
 
-        # Router port MACs assumed by the controller
         self.port_to_own_mac = {
-        1: "00:00:00:00:01:01",
-        2: "00:00:00:00:01:02",
-        3: "00:00:00:00:01:03"
+            1: "00:00:00:00:01:01",
+            2: "00:00:00:00:01:02",
+            3: "00:00:00:00:01:03"
         }
-        # Router port (gateways) IP addresses assumed by the controller
+
         self.port_to_own_ip = {
-        1: "10.0.1.1",
-        2: "10.0.2.1",
-        3: "192.168.1.1"
+            1: "10.0.1.1",
+            2: "10.0.2.1",
+            3: "192.168.1.1"
         }
 
-        # ip to mac
         self.arp_cache = {}
-        
 
-    # Wird aufgerufen wenn sich die switch nach dem Verbindungsaufbau beim Controller meldet 
-    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER) # This decorater tells RYU when to perform the decorated function
+    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
-        
-        datapath = ev.msg.datapath # ev.msg is smth that represents a packet_in data structure, ) ev.msg = message -> message.datapath = 
-        ofproto = datapath.ofproto  # Stuff from OF negotiation
-        parser = datapath.ofproto_parser # parser kann nachrichten erzeugen
+        datapath = ev.msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
 
-        # Initial flow entry for matching misses<
+        # Install default table-miss flow entry
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
-                                          ofproto.OFPCML_NO_BUFFER)]
+                                        ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
 
-    # Add a flow entry to the flow-table
     def add_flow(self, datapath, priority, match, actions):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        # Construct flow_mod message and send it
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
-                                match=match, instructions=inst)
+        mod = parser.OFPFlowMod(
+            datapath=datapath,
+            priority=priority,
+            match=match,
+            instructions=inst
+        )
         datapath.send_msg(mod)
 
-    # Handle the packet_in event, Happens only when there is no flow-rule
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
-    def _packet_in_handler(self, ev): # wtf is ev?
-        self.logger.info(f"Received message type: {type(ev.msg)}")
-
+    def _packet_in_handler(self, ev):
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -96,77 +91,88 @@ class LearningSwitch(app_manager.RyuApp):
         in_port = msg.match["in_port"]
 
         pkt = packet.Packet(msg.data)
-        eth_pkt = pkt.get_protocol(ethernet.ethernet) #ethernet layer 2
-        arp_pkt = pkt.get_protocol(arp.arp) #arp layer 3
-        ipv4_pkt = pkt.get_protocol(ipv4.ipv4) #ipv4 layer 3
+        eth_pkt = pkt.get_protocol(ethernet.ethernet)
+        
+        # Ignore IPv6 packets
+        if eth_pkt.ethertype == ether_types.ETH_TYPE_IPV6:
+            return
 
-        # We do not handle IPv6
-        if eth_pkt.ethertype == 0x86dd:  # IPv6
-            return  # skip IPv6 packets
+        # Layer 2: MAC Learning
+        src = eth_pkt.src
+        dst = eth_pkt.dst
+        dpid = datapath.id
+        self.mac_to_port.setdefault(dpid, {})
+        self.mac_to_port[dpid][src] = in_port
 
-        # ethernet destination and source as MAC-addresses (strings)
-        dst_MAC = eth_pkt.dst
-        src_MAC = eth_pkt.src
-
-        # useless logs for me
-        self.logger.info(f"Message from ({datapath.id}) {src_MAC} to {dst_MAC}" )
-
-        # if some sort of the ARP protocol was in the message do: otherwise arp_pkt will be NONE 
-        if arp_pkt:
-            self.logger.info("ARP-Paket received")
+        # Layer 3: Handle ARP in controller
+        if eth_pkt.ethertype == ether_types.ETH_TYPE_ARP:
+            arp_pkt = pkt.get_protocol(arp.arp)
             self.handle_arp(datapath, in_port, eth_pkt, arp_pkt)
-        
-        if ipv4_pkt:
-            pass
-        
-        if eth_pkt:
-            self.switch_logic(msg)
+            return
 
-    # We got some ARP trash, can only be a request or a reply, for reply update arp-cache, for request sent packet to everyone?
-    def handle_arp(self,datapath, in_port, eth_pkt, arp_pkt):
+        # Layer 2: Switch logic
+        if dst in self.mac_to_port[dpid]:
+            out_port = self.mac_to_port[dpid][dst]
+        else:
+            out_port = ofproto.OFPP_FLOOD
+
+        actions = [parser.OFPActionOutput(out_port)]
+
+        # Install flow entry only for non-ARP and known destinations
+        if out_port != ofproto.OFPP_FLOOD:
+            match = parser.OFPMatch(eth_dst=dst)
+            self.add_flow(datapath, 1, match, actions)
+
+        data = None
+        if msg.buffer_id == ofproto.OFP_NO_BUFFER:
+            data = msg.data
+
+        out = parser.OFPPacketOut(
+            datapath=datapath, buffer_id=msg.buffer_id, in_port=in_port,
+            actions=actions, data=data)
+        datapath.send_msg(out)
+
+    def handle_arp(self, datapath, in_port, eth_pkt, arp_pkt):
+        if not arp_pkt:
+            return
+
         if arp_pkt.opcode == arp.ARP_REQUEST:
-            self.logger.info(f"ARP-Request for ip: {arp_pkt.dst_ip}")
             self.handle_arp_request(datapath, in_port, eth_pkt, arp_pkt)
         elif arp_pkt.opcode == arp.ARP_REPLY:
-            self.logger.info(f"ARP-Reply from ip {arp_pkt.src_ip}")
             self.handle_arp_reply(arp_pkt)
 
     def handle_arp_request(self, datapath, in_port, eth_pkt, arp_pkt):
         target_ip = arp_pkt.dst_ip
 
-        # Nur für Gateway-IPs antworten
+        # Only respond to gateway IPs
         if target_ip not in self.GATEWAY_IPS:
-            self.logger.debug(f"Ignoriere ARP-Request für {target_ip} (keine Gateway-IP)")
-            return  # Keine Antwort senden
-
-        # Prüfe, ob die Ziel-IP einem Router-Port zugeordnet ist
-        if in_port in self.port_to_own_ip:
-            router_ip = self.port_to_own_ip[in_port]
-            if target_ip == router_ip:
-                target_mac = self.port_to_own_mac[in_port]
-            else:
-                self.logger.warning(f"Port {in_port} nicht zuständig für {target_ip}")
-                return
-        else:
-            self.logger.error(f"Port {in_port} hat keine Router-IP-Konfiguration")
+            self.logger.debug(f"Ignoring ARP request for non-gateway IP: {target_ip}")
             return
 
-        # ARP-Reply erstellen (wie zuvor)
-        eth_reply = ethernet.ethernet(
-            src=target_mac,
-            dst=eth_pkt.src,
-            ethertype=eth_pkt.ethertype
-        )
+        # Verify the request is for this router's interface
+        if in_port not in self.port_to_own_ip:
+            self.logger.error(f"Received ARP on unconfigured port {in_port}")
+            return
 
+        if target_ip != self.port_to_own_ip[in_port]:
+            self.logger.warning(f"Port {in_port} not responsible for {target_ip}")
+            return
+
+        # Build ARP reply
         arp_reply = arp.arp(
             opcode=arp.ARP_REPLY,
-            src_mac=target_mac,
+            src_mac=self.port_to_own_mac[in_port],
             src_ip=target_ip,
             dst_mac=arp_pkt.src_mac,
             dst_ip=arp_pkt.src_ip
         )
 
-        # Paket senden
+        eth_reply = ethernet.ethernet(
+            ethertype=eth_pkt.ethertype,
+            dst=eth_pkt.src,
+            src=self.port_to_own_mac[in_port]
+        )
+
         reply_pkt = packet.Packet()
         reply_pkt.add_protocol(eth_reply)
         reply_pkt.add_protocol(arp_reply)
@@ -181,7 +187,11 @@ class LearningSwitch(app_manager.RyuApp):
             data=reply_pkt.data
         )
         datapath.send_msg(out)
-        self.logger.info(f"ARP-Reply für Gateway {target_ip} gesendet")
+        self.logger.info(f"Sent ARP reply for {target_ip} via port {in_port}")
+
+    def handle_arp_reply(self, arp_pkt):
+        self.arp_cache[arp_pkt.src_ip] = arp_pkt.src_mac
+        self.logger.info(f"Updated ARP cache: {arp_pkt.src_ip} -> {arp_pkt.src_mac}")
 
         
     def switch_logic(self, msg):
