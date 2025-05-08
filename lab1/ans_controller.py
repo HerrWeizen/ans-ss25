@@ -127,9 +127,9 @@ class LearningSwitch(app_manager.RyuApp):
         target_ip = arp_pkt_in.dst_ip # der der gesucht wird?
         self.logger.info(f"ARP-Request for IP {target_ip} from {in_port} on {datapath.id}")
 
-        if target_ip not in self.port_to_own_ip.values():
-            self.logger.info(f"ARP-Request not for our Router")
-            return
+        #if target_ip not in self.port_to_own_ip.values():
+        #    self.logger.info(f"ARP-Request not for our Router")
+        #    return
         
         requested_mac =  self.port_to_own_mac[return_port]
         requested_ip = self.port_to_own_ip[return_port]
