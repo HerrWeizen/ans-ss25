@@ -101,7 +101,9 @@ class LearningSwitch(app_manager.RyuApp):
 
         # ethernet destination and source as MAC-addresses (strings)
         dst_MAC = eth.dst
-        self.logger.info(f"The received message has a destination MAC of: {dst_MAC}")
+        src_MAC = eth.src
+
+        self.logger.info(f"Message from {src_MAC} to {dst_MAC}" )
 
         arp_pkt = pkt.get_protocol(arp.arp)
 
