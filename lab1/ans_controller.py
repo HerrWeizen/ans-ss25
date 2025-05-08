@@ -113,8 +113,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         else:
             self.logger.info("Paket von Switch DPID %s empfangen", dpid)
-            if dpid == 1:
-                return
+
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
         
