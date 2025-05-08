@@ -147,7 +147,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         eth_reply = ethernet.ethernet(
             src_mac = requested_mac, # the router is currently sending
-            dst_mac = retun_mac, # send it to the last hop
+            dst_mac = return_mac, # send it to the last hop
             ethertype = eth_pkt_in.ethertype 
         )
 
