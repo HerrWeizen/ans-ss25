@@ -103,7 +103,7 @@ class LearningSwitch(app_manager.RyuApp):
         dst_MAC = eth.dst
         src_MAC = eth.src
 
-        self.logger.info(f"Message from {src_MAC} to {dst_MAC}" )
+        self.logger.info(f"Message from ({datapath.id}) {src_MAC} to {dst_MAC}" )
 
         arp_pkt = pkt.get_protocol(arp.arp)
 
