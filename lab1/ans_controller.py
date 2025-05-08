@@ -126,7 +126,8 @@ class LearningSwitch(app_manager.RyuApp):
                 self.router_ip_logic(msg)
 
     def switch_logic(self, msg):
-
+        
+        self.logger.info(f"Switch Logic is handeling the packet.")
         datapath = msg.datapath
         ofproto = datapath.ofproto
     
@@ -177,6 +178,7 @@ class LearningSwitch(app_manager.RyuApp):
     # Translate IP to MAC in a local network
     def router_arp_logic(self, msg):
 
+        self.logger.info(f"Router ARP Logic is handeling the packet.")
         datapath = msg.datapath # ev.msg is smth that represents a packet_in data structure, ) ev.msg = message -> message.datapath = 
         ofproto = datapath.ofproto  # Stuff from OF negotiation
         parser = datapath.ofproto_parser # parser kann nachrichten erzeugen
@@ -226,7 +228,7 @@ class LearningSwitch(app_manager.RyuApp):
                     break
 
     def router_ip_logic(self, msg):
-
+        self.logger.info(f"Router IP Logic is handeling the packet.")
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
