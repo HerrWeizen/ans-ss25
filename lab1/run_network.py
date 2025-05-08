@@ -74,8 +74,14 @@ def run():
     s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
 
     for h in ['h1', 'h2', 'ext', 'ser']:
-        net.get(h).cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
-        net.get(h).cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+        host = net.get(h)
+        # Deaktiviere IPv6 global
+        host.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
+        host.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+        
+        # Zusätzlich: Link-Local-Adressen entfernen
+        host.cmd("ip -6 addr flush dev {}".format(host.defaultIntf()))
+
 
     CLI(net)
     net.stop()
