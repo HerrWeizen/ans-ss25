@@ -36,8 +36,11 @@ class LearningSwitch(app_manager.RyuApp):
         # Tabelle für MAC/Ports
         self.mac_to_port = {}
 
-        #used to detect whether a paket is directed to the router or not
-        self.detect_router = {"00:00:00:00:01:01","00:00:00:00:01:02","00:00:00:00:01:03"}
+        self.GATEWAY_IPS = {
+            "10.0.1.1",    # Gateway für 10.0.1.0/24
+            "10.0.2.1",    # Gateway für 10.0.2.0/24
+            "192.168.1.1"  # Gateway für 192.168.1.0/24
+        }
 
         # Router port MACs assumed by the controller
         self.port_to_own_mac = {
@@ -52,6 +55,9 @@ class LearningSwitch(app_manager.RyuApp):
         3: "192.168.1.1"
         }
 
+        # ip to mac
+        self.arp_cache = {}
+        
 
     # Wird aufgerufen wenn sich die switch nach dem Verbindungsaufbau beim Controller meldet 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER) # This decorater tells RYU when to perform the decorated function
@@ -125,36 +131,33 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"ARP-Reply from ip {arp_pkt.src_ip}")
             self.handle_arp_reply(arp_pkt)
 
-    # If we got a reply from a request, fill in the arp_cache
-    def handle_arp_reply(self, arp_pkt):
-        self.arp_cache[arp_pkt.src_ip] = arp_pkt.src_mac
-        self.logger.info(f"ARP-Cache is refreshed: {arp_pkt.src_ip} -> {arp_pkt.src_mac}")
-
     def handle_arp_request(self, datapath, in_port, eth_pkt, arp_pkt):
-
-        # in_port is the port we have the request to send back
         target_ip = arp_pkt.dst_ip
-        target_mac = None
 
+        # Nur für Gateway-IPs antworten
+        if target_ip not in self.GATEWAY_IPS:
+            self.logger.debug(f"Ignoriere ARP-Request für {target_ip} (keine Gateway-IP)")
+            return  # Keine Antwort senden
+
+        # Prüfe, ob die Ziel-IP einem Router-Port zugeordnet ist
         if in_port in self.port_to_own_ip:
-            # if the subnets are equal to the targets_ip subnet we have the correct port
-            if target_ip.split(".")[0:3] == self.port_to_own_ip[in_port].split(".")[0:3]:
+            router_ip = self.port_to_own_ip[in_port]
+            if target_ip == router_ip:
                 target_mac = self.port_to_own_mac[in_port]
-                self.logger.info(f"Router-ARP for Port {in_port}: {target_ip} -> {target_mac}" )
+            else:
+                self.logger.warning(f"Port {in_port} nicht zuständig für {target_ip}")
+                return
+        else:
+            self.logger.error(f"Port {in_port} hat keine Router-IP-Konfiguration")
+            return
 
-        if not target_mac:
-            self.logger.warn(f"Keine MAC für {target_ip} bekannt")
-            return  # Keine Antwort
-
-
-        # ETH-Reply
+        # ARP-Reply erstellen (wie zuvor)
         eth_reply = ethernet.ethernet(
-            ethertype=eth_pkt.ethertype,
-            dst=eth_pkt.src, # Where to send this shit back
-            src=self.port_to_own_mac[in_port] # who sent this shit back
+            src=target_mac,
+            dst=eth_pkt.src,
+            ethertype=eth_pkt.ethertype
         )
 
-        # ARP-Reply
         arp_reply = arp.arp(
             opcode=arp.ARP_REPLY,
             src_mac=target_mac,
@@ -163,13 +166,12 @@ class LearningSwitch(app_manager.RyuApp):
             dst_ip=arp_pkt.src_ip
         )
 
-        # Paket creation
+        # Paket senden
         reply_pkt = packet.Packet()
         reply_pkt.add_protocol(eth_reply)
         reply_pkt.add_protocol(arp_reply)
         reply_pkt.serialize()
 
-        # Send paket back
         actions = [datapath.ofproto_parser.OFPActionOutput(port=in_port)]
         out = datapath.ofproto_parser.OFPPacketOut(
             datapath=datapath,
@@ -179,7 +181,7 @@ class LearningSwitch(app_manager.RyuApp):
             data=reply_pkt.data
         )
         datapath.send_msg(out)
-        self.logger.info("ARP-Reply gesendet für IP: %s", arp_pkt.dst_ip)
+        self.logger.info(f"ARP-Reply für Gateway {target_ip} gesendet")
 
         
     def switch_logic(self, msg):
