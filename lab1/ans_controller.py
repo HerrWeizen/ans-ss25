@@ -157,7 +157,7 @@ class LearningSwitch(app_manager.RyuApp):
         reply_pkt.add_protocol(arp_reply)
         reply_pkt.serialize()
         
-        actions = [datapath.ofproto_parser.OFPactionOutput(return_port)]
+        actions = [datapath.ofproto_parser.OFPActionOutput(return_port)]
         packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                           buffer_id=datapath.ofproto.OFP_NO_BUFFFER,
                                                           in_port=in_port,
