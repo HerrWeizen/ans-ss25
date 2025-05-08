@@ -36,7 +36,7 @@ class LearningSwitch(app_manager.RyuApp):
         self.mac_to_port = {}
 
         # Layer 3: Router Configuration
-        self.router_dpids = {2,3} 
+        self.router_dpids = {3} 
 
         self.port_to_own_mac = {
             1: "00:00:00:00:01:01", # MAC für Router-Interface an Port 1
@@ -117,6 +117,60 @@ class LearningSwitch(app_manager.RyuApp):
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
         
+    def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
+        
+        return_port = in_port
+
+        if arp_pkt_in.opcode != arp.ARP_REQUEST:
+            return
+        
+        target_ip = arp_pkt_in.dst_ip # der der gesucht wird?
+        self.logger.info(f"ARP-Request for IP {target_ip} from {in_port}")
+
+        if target_ip not in self.port_to_own_ip.values():
+            self.logger.info(f"ARP-Request not for our Router")
+            return
+        
+        requested_mac =  self.port_to_own_mac[return_port]
+        requested_ip = self.port_to_own_ip[return_port]
+
+        arp_reply = arp.arp(
+            opcode = arp.ARP_REPLY,
+            src_mac = requested_mac, # The MAC of router that was requested from host
+            src_ip = requested_ip, # The IP of router that was requested from host
+            dst_mac = arp_pkt_in.src_mac, # The MAC of the host that requested
+            dst_ip = arp_pkt_in.src_ip # The IP of the Host that requested
+        )
+        
+        
+        return_mac = eth_pkt_in.src_mac # the MAC of the last hop
+
+        eth_reply = ethernet.ethernet(
+            src_mac = requested_mac # the router is currently sending
+            dst_mac = retun_mac # send it to the last hop
+            ethertype = eth_pkt_in.ethertype 
+        )
+
+
+        reply_pkt = packet.Packet()
+        reply_pkt.add_protocol(eth_reply)
+        reply_pkt.add_protocol(arp_reply)
+        reply_pkt.serialize()
+        
+        actions = [datapath.ofproto_parser.OFPactionOutput(return_port)]
+        packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                          buffer_id=datapath.ofproto.OFP_NO_BUFFFER,
+                                                          in_port=in_port,
+                                                          actions=actions,
+                                                          data=reply_pkt.data
+                                                          )
+        datapath.send_msg(packet_out)
+        self.logger.info(f"ARP-Reply for {target_ip} -> {requested_mac}")
+
+        return None
+    
+    def _handle_ip_for_router(datapath, ip_pkt_in, eth_pkt_in, in_port):
+        pass
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
