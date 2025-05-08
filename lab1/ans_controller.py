@@ -37,7 +37,7 @@ class LearningSwitch(app_manager.RyuApp):
         self.mac_to_port = {}
 
         # Layer 3: Router Configuration
-        self.router_dpids = {1}
+        self.router_dpids = {2,3}
 
         self.port_to_own_mac = {
             1: "00:00:00:00:01:01",
@@ -113,6 +113,8 @@ class LearningSwitch(app_manager.RyuApp):
                 return
 
         else:
+            if dpid == 1:
+                return
             self.logger.info("Paket von Switch DPID %s empfangen", dpid)
             # Hier Ihre Switch-Logik implementieren (z.B. MAC Learning)
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
