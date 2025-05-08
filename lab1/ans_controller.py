@@ -170,7 +170,9 @@ class LearningSwitch(app_manager.RyuApp):
         return None
     
     def _handle_ip_for_router(datapath, ip_pkt_in, eth_pkt_in, in_port):
-        pass
+        
+        src_ip = ip_pkt_in.src
+        dest_ip = ip_pkt_in.dst
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
@@ -218,4 +220,4 @@ class LearningSwitch(app_manager.RyuApp):
 
         # Send the packet-out message to the switch
         datapath.send_msg(packet_out)
-        self.logger.info(f"{self.mac_to_port}")
+
