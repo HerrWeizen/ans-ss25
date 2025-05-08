@@ -48,10 +48,9 @@ class NetworkTopo(Topo):
         self.addLink(h2, s1, cls = TCLink, bw=15, delay="10ms")
         self.addLink(ser, s2, cls = TCLink, bw=15, delay="10ms")
 
-        self.addLink(ext, s3, cls = TCLink, bw=15, delay="10ms", intfName2="ext-s3")
-        self.addLink(s1, s3, cls = TCLink, bw=15, delay="10ms", intfName2="s1-s3")
-        self.addLink(s2, s3, cls = TCLink, bw=15, delay="10ms", intfName2="s2-s3")
-
+        self.addLink(s1, s3, cls = TCLink, bw=15, delay="10ms")
+        self.addLink(s2, s3, cls = TCLink, bw=15, delay="10ms")
+        self.addLink(ext, s3, cls = TCLink, bw=15, delay="10ms")
 
 
 
@@ -66,23 +65,8 @@ def run():
         controller=RemoteController, 
         ip="127.0.0.1", 
         port=6653)
-    s3 = net.get('s3')
 
     net.start()
-    s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
-    s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
-    s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
-
-    for h in ['h1', 'h2', 'ext', 'ser']:
-        host = net.get(h)
-        # Deaktiviere IPv6 global
-        host.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
-        host.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
-        
-        # Zusätzlich: Link-Local-Adressen entfernen
-        host.cmd("ip -6 addr flush dev {}".format(host.defaultIntf()))
-
-
     CLI(net)
     net.stop()
 
