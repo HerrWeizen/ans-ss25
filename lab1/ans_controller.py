@@ -235,107 +235,51 @@ class LearningSwitch(app_manager.RyuApp):
         )
         self.add_flow(datapath, 2, match, actions)
         
-    def get_dst_mac_for_ip(self, ip):
-        if ip in self.arp_cache:
-            return self.arp_cache[ip]
-        else:
-            # Send ARP request.  Important:  Prevent infinite loop.
-            self.logger.warning(f"No ARP entry for {ip}, sending ARP request")
-            return self.send_arp_request(self.datapath, ip) # Removed datapath from parameter list.
-
-
-    def _send_packet(self, datapath, out_port, pkt):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-        pkt.serialize()
-        data = pkt.data
-        actions = [parser.OFPActionOutput(port=out_port)]
-        out = parser.OFPPacketOut(
-            datapath=datapath,
-            buffer_id=ofproto.OFP_NO_BUFFER,
-            in_port=ofproto.OFPP_CONTROLLER,
-            actions=actions,
-            data=data
-        )
-        datapath.send_msg(out)
-        
-    def send_arp_request(self, datapath, target_ip):
-        # Find the appropriate outgoing port and source IP for the target IP.
-        out_port = None
-        src_ip = None
-        for port, ip in self.port_to_own_ip.items():
-            if target_ip.split('.')[0:3] == ip.split('.')[0:3]:
-                out_port = port
-                src_ip = ip
-                break
-
-        if out_port is None or src_ip is None:
-            self.logger.error(f"No suitable interface found to send ARP request for {target_ip}")
-            return None  # Important:  Return None, don't send packet.
-
-        e = ethernet.ethernet(
-            dst='ff:ff:ff:ff:ff:ff',  # Broadcast
-            src=self.port_to_own_mac[out_port],
-            ethertype=ether_types.ETH_TYPE_ARP)
-        a = arp.arp(
-            opcode=arp.ARP_REQUEST,
-            src_mac=self.port_to_own_mac[out_port],
-            src_ip=src_ip,
-            dst_mac='00:00:00:00:00:00',  # Unused in request
-            dst_ip=target_ip)
-        p = packet.Packet()
-        p.add_protocol(e)
-        p.add_protocol(a)
-        p.serialize()
-
-        self._send_packet(datapath, out_port, p)  # Use the _send_packet helper
-        self.logger.info(f"Sent ARP request for {target_ip} on port {out_port}")
-        return None # return None, because the mac address is unknown.
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
-        
-        self.logger.info(f"Switch Logic is handling the packet.")
+        """
+        Handles incoming packets at the switch.
+
+        Args:
+            datapath (ryu.controller.controller.Datapath): The datapath object representing the switch.
+            data (bytes): The raw packet data.
+            eth_pkt (ryu.lib.packet.ethernet.ethernet): The parsed Ethernet packet.
+            in_port (int): The port the packet arrived on.
+        """
+        self.logger.info("Switch Logic is handling the packet.")
         ofproto = datapath.ofproto
-    
-        #pkt = packet.Packet(msg.data) # Removed pkt, used eth_pkt
-        # extract ethernet layer form parsed object
-        #eth = pkt.get_protocol(ethernet.ethernet) # Removed, using parameter.
-
-        # ethernet destination and source as MAC-addresses (strings)
-        dst_MAC = eth_pkt.dst
-        src_MAC = eth_pkt.src
-
-        # get unique id from the switch
+        parser = datapath.ofproto_parser
         dpid = datapath.id
 
-        # add a new table for the dpid if not present (i hope so)
+        # Initialize MAC to port mapping for this switch if not present
         if dpid not in self.mac_to_port:
             self.mac_to_port[dpid] = {}
-        
-        # create the MAC - Port entry#
-        if src_MAC not in self.mac_to_port[dpid]:
-            self.mac_to_port[dpid][src_MAC] = in_port
 
-        # look if the destination is present in the mac - port table for the switch, if not flood all ports
-        if dst_MAC in self.mac_to_port[dpid]:
-            out_port = self.mac_to_port[dpid][dst_MAC] # port to send the message to
-            # tell the stupid ass switch what the fuck to do (install flow):
-            match = datapath.ofproto_parser.OFPMatch(eth_dst=dst_MAC) # a filter: when in ethernet the dst_MAC is found ... 
-            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)] # ... send in to this port
-            self.add_flow(datapath, 1, match, actions) # give the above rule of match / action to the switch
+        # Learn the source MAC address and the port it arrived on
+        src_mac = eth_pkt.src
+        self.mac_to_port[dpid][src_mac] = in_port
+
+        dst_mac = eth_pkt.dst
+        out_port = None
+
+        # Check if we know the output port for the destination MAC
+        if dst_mac in self.mac_to_port[dpid]:
+            out_port = self.mac_to_port[dpid][dst_mac]
+            # Install a flow rule to forward future packets directly
+            match = parser.OFPMatch(eth_dst=dst_mac)
+            actions = [parser.OFPActionOutput(out_port)]
+            self.add_flow(datapath, 1, match, actions)
         else:
-            out_port = ofproto.OFPP_FLOOD # flood all ports
+            # Flood the packet on all ports if the destination is unknown
+            out_port = ofproto.OFPP_FLOOD
 
-        ## Okay, also n die flowregel wurde gesetzt, jetzt muss man das scheiß ding auch noch selbst weiter leiten weil alles doof
-        ##response = self.mac_to_port[dpid][dst_MAC]
-        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+        # Create the packet-out message to forward the current packet
+        actions = [parser.OFPActionOutput(out_port)]
+        packet_out = parser.OFPPacketOut(datapath=datapath,
+                                           buffer_id=ofproto.OFP_NO_BUFFER,
+                                           in_port=in_port,
+                                           actions=actions,
+                                           data=data)
 
-        # Was abgeschickt werden soll
-        forward = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, 
-                                                       buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                       in_port=in_port, 
-                                                       actions=actions,
-                                                       data=data)
-
-        # Datapath sagen, schick den scheiß
-        datapath.send_msg(forward)
+        # Send the packet-out message to the switch
+        datapath.send_msg(packet_out)
