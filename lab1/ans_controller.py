@@ -51,6 +51,9 @@ class LearningSwitch(app_manager.RyuApp):
         2: "10.0.2.1",
         3: "192.168.1.1"
         }
+
+        # ip to mac
+        self.arp_cache = {}
         
 
     # Wird aufgerufen wenn sich die switch nach dem Verbindungsaufbau beim Controller meldet 
@@ -153,28 +156,26 @@ class LearningSwitch(app_manager.RyuApp):
         # Datapath sagen, schick den scheiß
         datapath.send_msg(forward)
 
-    def _send_packet(self, datapath, port, pkt):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-        data = pkt.data if isinstance(pkt, packet.Packet) else pkt
-        actions = [parser.OFPActionOutput(port)]
-        out = parser.OFPPacketOut(
-            datapath=datapath,
-            buffer_id=ofproto.OFP_NO_BUFFER,
-            in_port=ofproto.OFPP_CONTROLLER,
-            actions=actions,
-            data=data
-        )
-        datapath.send_msg(out)
-
+    # Translate IP to MAC in a local network
     def router_arp_logic(self, msg):
+
+        datapath = msg.datapath # ev.msg is smth that represents a packet_in data structure, ) ev.msg = message -> message.datapath = 
+        ofproto = datapath.ofproto  # Stuff from OF negotiation
+        parser = datapath.ofproto_parser # parser kann nachrichten erzeugen
+
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocol(ethernet.ethernet)
         arp_pkt = pkt.get_protocol(arp.arp)
 
+        src_MAC = eth.src
+        dst_MAC = eth.dst
+
         # Check if ARP request is for one of the router's IPs
         if arp_pkt.opcode == arp.ARP_REQUEST:
+            
             for port, ip in self.port_to_own_ip.items():
+
+                # If the requested ip is the ip of the current loop:
                 if arp_pkt.dst_ip == ip:
                     # Build ARP reply
                     reply = packet.Packet()
@@ -191,7 +192,19 @@ class LearningSwitch(app_manager.RyuApp):
                         dst_ip=arp_pkt.src_ip
                     ))
                     # Send reply back
-                    self._send_packet(msg.datapath, msg.match['in_port'], reply)
+                    reply.serialize()
+                    data = reply.data # what data is inside the replay
+                    actions = [parser.OFPActionOutput(port)] # what should be done with the reply (send it over <port>)
+                    out = parser.OFPPacketOut(
+                        datapath=datapath,
+                        buffer_id=ofproto.OFP_NO_BUFFER,
+                        in_port=ofproto.OFPP_CONTROLLER,
+                        actions=actions,
+                        data=data
+                    )
+                    datapath.send_msg(out)
+                    self.logger.info(f"Sent ARP reply to {arp_pkt.src_ip} ({arp_pkt.src_mac}) from port {port}")
+
                     break
 
     def router_ip_logic(self, msg):
