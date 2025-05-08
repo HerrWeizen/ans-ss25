@@ -52,9 +52,6 @@ class LearningSwitch(app_manager.RyuApp):
         3: "192.168.1.1"
         }
 
-        # ip to mac
-        self.arp_cache = {}
-        
 
     # Wird aufgerufen wenn sich die switch nach dem Verbindungsaufbau beim Controller meldet 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER) # This decorater tells RYU when to perform the decorated function
@@ -89,42 +86,98 @@ class LearningSwitch(app_manager.RyuApp):
         msg = ev.msg
         datapath = msg.datapath
         ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        in_port = msg.match["in_port"]
 
-        # parse raw packet into a structure object - .data extracts the raw data from the msg - contains all protocol parts
         pkt = packet.Packet(msg.data)
+        eth_pkt = pkt.get_protocol(ethernet.ethernet) #ethernet layer 2
+        arp_pkt = pkt.get_protocol(arp.arp) #arp layer 3
+        ipv4_pkt = pkt.get_protocol(ipv4.ipv4) #ipv4 layer 3
 
-        # extract ethernet layer form parsed object
-        eth = pkt.get_protocol(ethernet.ethernet) 
-
-        if eth.ethertype == 0x86dd:  # IPv6
+        # We do not handle IPv6
+        if eth_pkt.ethertype == 0x86dd:  # IPv6
             return  # skip IPv6 packets
 
         # ethernet destination and source as MAC-addresses (strings)
-        dst_MAC = eth.dst
-        src_MAC = eth.src
+        dst_MAC = eth_pkt.dst
+        src_MAC = eth_pkt.src
 
+        # useless logs for me
         self.logger.info(f"Message from ({datapath.id}) {src_MAC} to {dst_MAC}" )
 
-        arp_pkt = pkt.get_protocol(arp.arp)
-
-        # Check if ARP request is for one of the router's IPs
-        try:
-            if arp_pkt.opcode == arp.ARP_REQUEST:
-                self.logger.info(f"The received message is an ARP REQUEST")
-            elif arp_pkt.opcode == arp.ARP_REPLY:
-                self.logger.info(f"The received message is an ARP REPLY")
-        except:
-            self.logger.info(f"Packet protocols: {[p.protocol_name for p in pkt.protocols if hasattr(p, 'protocol_name')]}")
-            
-        if dst_MAC not in self.detect_router:
+        # if some sort of the ARP protocol was in the message do: otherwise arp_pkt will be NONE 
+        if arp_pkt:
+            self.logger.info("ARP-Paket received")
+            self.handle_arp(datapath, in_port, eth_pkt, arp_pkt)
+        
+        if ipv4_pkt:
+            pass
+        
+        if eth_pkt:
             self.switch_logic(msg)
-        else:
-            print(eth.ethertype)
-            if eth.ethertype == ether_types.ETH_TYPE_ARP:
-                self.router_arp_logic(msg)
-            elif eth.ethertype == ether_types.ETH_TYPE_IP:
-                self.router_ip_logic(msg)
 
+    # We got some ARP trash, can only be a request or a reply, for reply update arp-cache, for request sent packet to everyone?
+    def handle_arp(self,datapath, in_port, eth_pkt, arp_pkt):
+        if arp_pkt.opcode == arp.ARP_REQUEST:
+            self.logger.info(f"ARP-Request for ip: {arp_pkt.dst_ip}")
+            self.handle_arp_request(datapath, in_port, eth_pkt, arp_pkt)
+        elif arp_pkt.opcode == arp.ARP_REPLY:
+            self.logger.info(f"ARP-Reply from ip {arp_pkt.src_ip}")
+            self.handle_arp_reply(arp_pkt)
+
+    # If we got a reply from a request, fill in the arp_cache
+    def handle_arp_reply(self, arp_pkt):
+        self.arp_cache[arp_pkt.src_ip] = arp_pkt.src_mac
+        self.logger.info(f"ARP-Cache is refreshed: {arp_pkt.src_ip} -> {arp_pkt.src_mac}")
+
+    def handle_arp_request(self, datapath, in_port, eth_pkt, arp_pkt):
+
+        # in_port is the port we have the request to send back
+        target_ip = arp_pkt.dst_ip
+        target_mac = None
+
+        if in_port in self.port_to_own_ip:
+            # if the subnets are equal to the targets_ip subnet we have the correct port
+            if target_ip.split(".")[0:3] == self.port_to_own_ip[in_port].split(".")[0:3]:
+                target_mac = self.port_to_own_mac[in_port]
+                self.logger.info(f"Router-ARP for Port {in_port}: {target_ip} -> {target_mac}" )
+
+
+        # ETH-Reply
+        eth_reply = ethernet.ethernet(
+            ethertype=eth_pkt.ethertype,
+            dst=eth_pkt.src, # Where to send this shit back
+            src=self.port_to_own_mac[in_port] # who sent this shit back
+        )
+
+        # ARP-Reply
+        arp_reply = arp.arp(
+            opcode=arp.ARP_REPLY,
+            src_mac=target_mac,
+            src_ip=target_ip,
+            dst_mac=arp_pkt.src_mac,
+            dst_ip=arp_pkt.src_ip
+        )
+
+        # Paket creation
+        reply_pkt = packet.Packet()
+        reply_pkt.add_protocol(eth_reply)
+        reply_pkt.add_protocol(arp_reply)
+        reply_pkt.serialize()
+
+        # Send paket back
+        actions = [datapath.ofproto_parser.OFPActionOutput(port=in_port)]
+        out = datapath.ofproto_parser.OFPPacketOut(
+            datapath=datapath,
+            buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+            in_port=datapath.ofproto.OFPP_CONTROLLER,
+            actions=actions,
+            data=reply_pkt.data
+        )
+        datapath.send_msg(out)
+        self.logger.info("ARP-Reply gesendet für IP: %s", arp_pkt.dst_ip)
+
+        
     def switch_logic(self, msg):
         
         self.logger.info(f"Switch Logic is handeling the packet.")
@@ -170,7 +223,7 @@ class LearningSwitch(app_manager.RyuApp):
         forward = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                                        in_port=in_port, actions=actions,
                                                        data=msg.data)
-        self.logger.info(f"action: {actions}, Forward: {forward}")
+
         # Datapath sagen, schick den scheiß
         datapath.send_msg(forward)
 
