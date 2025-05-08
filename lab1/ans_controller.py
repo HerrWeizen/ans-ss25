@@ -96,6 +96,9 @@ class LearningSwitch(app_manager.RyuApp):
         # extract ethernet layer form parsed object
         eth = pkt.get_protocol(ethernet.ethernet) 
 
+        if eth.ethertype == 0x86dd:  # IPv6
+            return  # skip IPv6 packets
+
         # ethernet destination and source as MAC-addresses (strings)
         dst_MAC = eth.dst
         self.logger.info(f"The received message has a destination MAC of: {dst_MAC}")
@@ -107,7 +110,7 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"The received message is an ARP REQUEST")
         elif arp_pkt.opcode == arp.ARP_REPLY:
             self.logger.info(f"The received message is an ARP REPLY")
-            
+
         if dst_MAC not in self.detect_router:
             self.switch_logic(msg)
         else:

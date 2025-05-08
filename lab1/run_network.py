@@ -67,10 +67,20 @@ def run():
         ip="127.0.0.1", 
         port=6653)
     s3 = net.get('s3')
+    h1 = net.get('h1')
+    h2 = net.get('h2')
+    ext = net.get('ext')
+    ser = net.get('ser')
+    
     net.start()
     s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
     s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
     s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
+
+    for h in [h1, h2, ext, ser]:
+        net.get(h).cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
+        net.get(h).cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+
     CLI(net)
     net.stop()
 
