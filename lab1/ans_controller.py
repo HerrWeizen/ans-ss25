@@ -37,11 +37,7 @@ class LearningSwitch(app_manager.RyuApp):
         self.mac_to_port = {}
 
         # Layer 3: Router Configuration
-        self.GATEWAY_IPS = {
-            "10.0.1.1",    # Gateway für 10.0.1.0/24
-            "10.0.2.1",    # Gateway für 10.0.2.0/24
-            "192.168.1.1"  # Gateway für 192.168.1.0/24
-        }
+        self.router_dpids = {4}
 
         self.port_to_own_mac = {
             1: "00:00:00:00:01:01",
