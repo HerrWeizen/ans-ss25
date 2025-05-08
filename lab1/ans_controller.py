@@ -106,11 +106,14 @@ class LearningSwitch(app_manager.RyuApp):
         arp_pkt = pkt.get_protocol(arp.arp)
 
         # Check if ARP request is for one of the router's IPs
-        if arp_pkt.opcode == arp.ARP_REQUEST:
-            self.logger.info(f"The received message is an ARP REQUEST")
-        elif arp_pkt.opcode == arp.ARP_REPLY:
-            self.logger.info(f"The received message is an ARP REPLY")
-
+        try:
+            if arp_pkt.opcode == arp.ARP_REQUEST:
+                self.logger.info(f"The received message is an ARP REQUEST")
+            elif arp_pkt.opcode == arp.ARP_REPLY:
+                self.logger.info(f"The received message is an ARP REPLY")
+        except:
+            self.logger.info(f"Packet protocols: {[p.protocol_name for p in pkt.protocols if hasattr(p, 'protocol_name')]}")
+            
         if dst_MAC not in self.detect_router:
             self.switch_logic(msg)
         else:
