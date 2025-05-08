@@ -85,38 +85,41 @@ class LearningSwitch(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         msg = ev.msg
+        data = msg.data
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-        in_port = msg.match["in_port"]
+        in_port = msg.match['in_port']
+        dpid = datapath.id # Die DPID des Geräts, das das Paket gesendet hat
 
+
+        # get all possible pkt types
         pkt = packet.Packet(msg.data)
         eth_pkt = pkt.get_protocol(ethernet.ethernet)
-        
-        # Ignore IPv6 packets
-        if eth_pkt.ethertype == ether_types.ETH_TYPE_IPV6:
+        arp_pkt = pkt.get_protocol(arp.arp)
+        ip_pkt = pkt.get_protocol(ipv4.ipv4)
+
+        if not eth_pkt:
             return
 
-        # Layer 2: MAC Learning
-        src = eth_pkt.src
-        dst = eth_pkt.dst
-        dpid = datapath.id
-        self.mac_to_port.setdefault(dpid, {})
-        self.mac_to_port[dpid][src] = in_port
+        # Ist das Gerät ein Router?
+        is_router = dpid in self.router_dpids
 
-        # Layer 3: Handle ARP and IP only for router ports
-        if in_port in self.port_to_own_ip:
-            if eth_pkt.ethertype == ether_types.ETH_TYPE_ARP:
-                arp_pkt = pkt.get_protocol(arp.arp)
-                self.handle_arp(datapath, in_port, eth_pkt, arp_pkt)
-                return
-            elif eth_pkt.ethertype == ether_types.ETH_TYPE_IP:
-                ip_pkt = pkt.get_protocol(ipv4.ipv4)
-                self.handle_ip(datapath, in_port, eth_pkt, ip_pkt)
+        if is_router:
+            self.logger.info("Paket von Router DPID %s empfangen", dpid)
+            # Hier Ihre ARP/IP-Logik für Router implementieren
+            if arp_pkt:
+                self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
                 return
 
-        # Layer 2: Switch logic (for non-router ports or non-IP/ARP packets)
-        self.switch_logic(msg, eth_pkt) # Refactored switch logic
+            if ip_pkt:
+                self._handle_ip_for_router(datapath, ip_pkt, eth_pkt, in_port)
+                return
+
+        else:
+            self.logger.info("Paket von Switch DPID %s empfangen", dpid)
+            # Hier Ihre Switch-Logik implementieren (z.B. MAC Learning)
+            self._handle_switch_packet(datapath, pkt, data, eth_pkt, in_port)
 
     def handle_arp(self, datapath, in_port, eth_pkt, arp_pkt):
         if not arp_pkt:
@@ -293,10 +296,9 @@ class LearningSwitch(app_manager.RyuApp):
         self.logger.info(f"Sent ARP request for {target_ip} on port {out_port}")
         return None # return None, because the mac address is unknown.
 
-    def switch_logic(self, msg, eth_pkt): # added eth_pkt
+    def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         
         self.logger.info(f"Switch Logic is handling the packet.")
-        datapath = msg.datapath
         ofproto = datapath.ofproto
     
         #pkt = packet.Packet(msg.data) # Removed pkt, used eth_pkt
@@ -315,7 +317,6 @@ class LearningSwitch(app_manager.RyuApp):
             self.mac_to_port[dpid] = {}
         
         # create the MAC - Port entry#
-        in_port = msg.match['in_port']
         if src_MAC not in self.mac_to_port[dpid]:
             self.mac_to_port[dpid][src_MAC] = in_port
 
@@ -334,9 +335,11 @@ class LearningSwitch(app_manager.RyuApp):
         actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
         # Was abgeschickt werden soll
-        forward = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
-                                                       in_port=in_port, actions=actions,
-                                                       data=msg.data)
+        forward = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, 
+                                                       buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                       in_port=in_port, 
+                                                       actions=actions,
+                                                       data=data)
 
         # Datapath sagen, schick den scheiß
         datapath.send_msg(forward)
