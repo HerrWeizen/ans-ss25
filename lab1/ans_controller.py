@@ -131,20 +131,25 @@ class LearningSwitch(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(LearningSwitch, self).__init__(*args, **kwargs)
         
+        # Layer 2: MAC Learning Table
         self.mac_to_port = {}
 
-        self.router_dpids = {4}
+        # Layer 3: Router Configuration
+        self.router_dpids = {4} # Beispiel DPID für einen Router
 
+        # Diese Dictionaries definieren die MAC- und IP-Adressen der Router-Interfaces
+        # Schlüssel: Portnummer am Router-Switch
+        # Wert: MAC- oder IP-Adresse als String
         self.port_to_own_mac = {
-            1: "00:00:00:00:01:01",
-            2: "00:00:00:00:01:02",
-            3: "00:00:00:00:01:03" 
+            1: "00:00:00:00:01:01", # MAC für Router-Interface an Port 1
+            2: "00:00:00:00:01:02", # MAC für Router-Interface an Port 2
+            3: "00:00:00:00:01:03"  # MAC für Router-Interface an Port 3
         }
 
         self.port_to_own_ip = {
-            1: "10.0.1.1",
-            2: "10.0.2.1",
-            3: "192.168.1.1"
+            1: "10.0.1.1",    # IP für Router-Interface an Port 1
+            2: "10.0.2.1",    # IP für Router-Interface an Port 2
+            3: "192.168.1.1" # IP für Router-Interface an Port 3
         }
 
         # ARP-Cache für den Router: Speichert IP -> MAC Mappings
@@ -176,6 +181,45 @@ class LearningSwitch(app_manager.RyuApp):
         )
         datapath.send_msg(mod)
 
+    @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
+    def _packet_in_handler(self, ev):
+        msg = ev.msg
+        data = msg.data
+        datapath = msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        in_port = msg.match['in_port']
+        dpid = datapath.id # Die DPID des Geräts, das das Paket gesendet hat
+
+
+        # get all possible pkt types
+        pkt = packet.Packet(msg.data)
+        eth_pkt = pkt.get_protocol(ethernet.ethernet)
+        arp_pkt = pkt.get_protocol(arp.arp)
+        ip_pkt = pkt.get_protocol(ipv4.ipv4)
+
+        if not eth_pkt:
+            return
+
+        # Ist das Gerät ein Router?
+        is_router = dpid in self.router_dpids
+
+        if is_router:
+            self.logger.info("Paket von Router DPID %s empfangen", dpid)
+            # Hier Ihre ARP/IP-Logik für Router implementieren
+            if arp_pkt:
+                self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
+                return
+
+            if ip_pkt:
+                self._handle_ip_for_router(datapath, ip_pkt, eth_pkt, in_port)
+                return
+
+        else:
+            self.logger.info("Paket von Switch DPID %s empfangen", dpid)
+
+            self._handle_switch_packet(datapath, data, eth_pkt, in_port)
+
     def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -199,7 +243,7 @@ class LearningSwitch(app_manager.RyuApp):
                                           ethertype=ether_types.ETH_TYPE_ARP)
                     a = arp.arp(hwtype=arp.ARP_HW_TYPE_ETHERNET,
                                 proto=ether_types.ETH_TYPE_IP,
-                                opcode=arp.ARP_REPLY,
+                                hlen=6, plen=4, opcode=arp.ARP_REPLY,
                                 src_mac=router_mac_str,
                                 src_ip=router_ip_str,
                                 dst_mac=arp_pkt_in.src_mac,
@@ -227,9 +271,11 @@ class LearningSwitch(app_manager.RyuApp):
                              arp_pkt_in.src_ip, arp_pkt_in.src_mac)
 
     def _handle_ip_for_router(self, datapath, ip_pkt_in, eth_pkt_in, in_port):
+        # Prüfen, ob die Ziel-IP eine der eigenen IPs des Routers ist
         for port_num, router_ip_str in self.port_to_own_ip.items():
             if ip_pkt_in.dst == router_ip_str:
-                router_mac_str = self.port_to_own_mac[port_num]
+                # Das Paket ist für eines der Router-Interfaces bestimmt.
+                router_mac_str = self.port_to_own_mac[port_num] # Zugehörige MAC dieses Interfaces
                 self.logger.info("Router: IP-Paket empfangen für mein Interface %s (MAC %s) an logischem Port %s. Kam von %s (MAC %s) an physischem Port %s. Protokoll: %s.",
                                  router_ip_str, router_mac_str, port_num,
                                  ip_pkt_in.src, eth_pkt_in.src, in_port, ip_pkt_in.proto)
@@ -239,6 +285,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         self.logger.info("Router: IP-Paket von %s an %s (empfangen an Port %s) ist nicht für meine Interfaces bestimmt. Verwerfe.",
                          ip_pkt_in.src, ip_pkt_in.dst, in_port)
+        # Keine Aktion -> Paket wird effektiv verworfen.
         
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
