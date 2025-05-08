@@ -98,6 +98,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         # ethernet destination and source as MAC-addresses (strings)
         dst_MAC = eth.dst
+        self.logger.info(f"The received message has a destination MAC of: {dst_MAC}")
         if dst_MAC not in self.detect_router:
             self.switch_logic(msg)
         else:
