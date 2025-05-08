@@ -135,7 +135,7 @@ class LearningSwitch(app_manager.RyuApp):
         self.mac_to_port = {}
 
         # Layer 3: Router Configuration
-        self.router_dpids = {4} # Beispiel DPID für einen Router
+        self.router_dpids = {2,3} # Beispiel DPID für einen Router
 
         # Diese Dictionaries definieren die MAC- und IP-Adressen der Router-Interfaces
         # Schlüssel: Portnummer am Router-Switch
@@ -220,72 +220,6 @@ class LearningSwitch(app_manager.RyuApp):
 
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
-    def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
-        if arp_pkt_in.src_ip != "0.0.0.0":
-             self.arp_cache[arp_pkt_in.src_ip] = arp_pkt_in.src_mac
-             self.logger.info("ARP-Cache aktualisiert/eingesehen: IP %s -> MAC %s", arp_pkt_in.src_ip, arp_pkt_in.src_mac)
-
-        if arp_pkt_in.opcode == arp.ARP_REQUEST:
-            self.logger.info("Router: ARP Request empfangen - Wer hat %s? Antwort an %s (MAC %s).",
-                             arp_pkt_in.dst_ip, arp_pkt_in.src_ip, arp_pkt_in.src_mac)
-
-            for port_num, router_ip_str in self.port_to_own_ip.items():
-                if router_ip_str == arp_pkt_in.dst_ip:
-                    router_mac_str = self.port_to_own_mac[port_num]
-                    self.logger.info("Router: ARP-Anfrage ist für meine IP %s an Port %s (meine MAC: %s). Sende ARP Reply.",
-                                     router_ip_str, port_num, router_mac_str)
-
-                    e = ethernet.ethernet(dst=eth_pkt_in.src,
-                                          src=router_mac_str,
-                                          ethertype=ether_types.ETH_TYPE_ARP)
-                    a = arp.arp(hwtype=arp.ARP_HW_TYPE_ETHERNET,
-                                proto=ether_types.ETH_TYPE_IP,
-                                hlen=6, plen=4, opcode=arp.ARP_REPLY,
-                                src_mac=router_mac_str,
-                                src_ip=router_ip_str,
-                                dst_mac=arp_pkt_in.src_mac,
-                                dst_ip=arp_pkt_in.src_ip)
-                    
-                    p = packet.Packet()
-                    p.add_protocol(e)
-                    p.add_protocol(a)
-                    p.serialize()
-
-                    actions = [parser.OFPActionOutput(in_port)]
-                    out = parser.OFPPacketOut(datapath=datapath,
-                                              buffer_id=ofproto.OFP_NO_BUFFER,
-                                              in_port=ofproto.OFPP_CONTROLLER,
-                                              actions=actions,
-                                              data=p.data)
-                    datapath.send_msg(out)
-                    self.logger.info("Router: ARP Reply gesendet: %s ist unter %s.", router_ip_str, router_mac_str)
-                    return
-
-            self.logger.info("Router: ARP-Anfrage für %s ist nicht für eine meiner IPs.", arp_pkt_in.dst_ip)
-
-        elif arp_pkt_in.opcode == arp.ARP_REPLY:
-             self.logger.info("Router: ARP Reply empfangen: %s ist unter %s. Cache wurde aktualisiert.",
-                             arp_pkt_in.src_ip, arp_pkt_in.src_mac)
-
-    def _handle_ip_for_router(self, datapath, ip_pkt_in, eth_pkt_in, in_port):
-        # Prüfen, ob die Ziel-IP eine der eigenen IPs des Routers ist
-        for port_num, router_ip_str in self.port_to_own_ip.items():
-            if ip_pkt_in.dst == router_ip_str:
-                # Das Paket ist für eines der Router-Interfaces bestimmt.
-                router_mac_str = self.port_to_own_mac[port_num] # Zugehörige MAC dieses Interfaces
-                self.logger.info("Router: IP-Paket empfangen für mein Interface %s (MAC %s) an logischem Port %s. Kam von %s (MAC %s) an physischem Port %s. Protokoll: %s.",
-                                 router_ip_str, router_mac_str, port_num,
-                                 ip_pkt_in.src, eth_pkt_in.src, in_port, ip_pkt_in.proto)
-                
-                self.logger.info("Router: Keine spezifische Aktion für IP-Paket an Router-Interface %s definiert. Ignoriere.", router_ip_str)
-                return 
-
-        self.logger.info("Router: IP-Paket von %s an %s (empfangen an Port %s) ist nicht für meine Interfaces bestimmt. Verwerfe.",
-                         ip_pkt_in.src, ip_pkt_in.dst, in_port)
-        # Keine Aktion -> Paket wird effektiv verworfen.
         
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
