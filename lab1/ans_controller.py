@@ -142,6 +142,10 @@ class LearningSwitch(app_manager.RyuApp):
                 target_mac = self.port_to_own_mac[in_port]
                 self.logger.info(f"Router-ARP for Port {in_port}: {target_ip} -> {target_mac}" )
 
+        if not target_mac:
+            self.logger.warn(f"Keine MAC für {target_ip} bekannt")
+            return  # Keine Antwort
+
 
         # ETH-Reply
         eth_reply = ethernet.ethernet(
