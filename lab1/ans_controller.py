@@ -159,7 +159,7 @@ class LearningSwitch(app_manager.RyuApp):
         
         actions = [datapath.ofproto_parser.OFPActionOutput(return_port)]
         packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
-                                                          buffer_id=datapath.ofproto.OFP_NO_BUFFFER,
+                                                          buffer_id=datapath.ofproto.OFP_NO_BUFFER,
                                                           in_port=in_port,
                                                           actions=actions,
                                                           data=reply_pkt.data
