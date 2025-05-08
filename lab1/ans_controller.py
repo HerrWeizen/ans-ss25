@@ -26,7 +26,6 @@ from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import ethernet, arp, ipv4, ether_types, packet # https://ryu.readthedocs.io/en/latest/library_packet.html
 
-
 class LearningSwitch(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
@@ -37,111 +36,8 @@ class LearningSwitch(app_manager.RyuApp):
         self.mac_to_port = {}
 
         # Layer 3: Router Configuration
-        self.router_dpids = {2,3}
+        self.router_dpids = {2,3} 
 
-        self.port_to_own_mac = {
-            1: "00:00:00:00:01:01",
-            2: "00:00:00:00:01:02",
-            3: "00:00:00:00:01:03"
-        }
-
-        self.port_to_own_ip = {
-            1: "10.0.1.1",
-            2: "10.0.2.1",
-            3: "192.168.1.1"
-        }
-
-        self.arp_cache = {}
-
-    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
-    def switch_features_handler(self, ev):
-        datapath = ev.msg.datapath
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
-        # Install default table-miss flow entry
-        match = parser.OFPMatch()
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
-                                        ofproto.OFPCML_NO_BUFFER)]
-        self.add_flow(datapath, 0, match, actions)
-
-    def add_flow(self, datapath, priority, match, actions):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        mod = parser.OFPFlowMod(
-            datapath=datapath,
-            priority=priority,
-            match=match,
-            instructions=inst
-        )
-        datapath.send_msg(mod)
-
-    @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
-    def _packet_in_handler(self, ev):
-
-        msg = ev.msg
-        data = msg.data
-        datapath = msg.datapath
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-        in_port = msg.match['in_port']
-        dpid = datapath.id
-
-        # get all possible pkt types
-        pkt = packet.Packet(msg.data)
-        eth_pkt = pkt.get_protocol(ethernet.ethernet)
-        arp_pkt = pkt.get_protocol(arp.arp)
-        ip_pkt = pkt.get_protocol(ipv4.ipv4)
-
-        if not eth_pkt:
-            return
-
-        # Ist das Gerät ein Router?
-        is_router = dpid in self.router_dpids
-
-        if is_router:
-            self.logger.info("Paket von Router DPID %s empfangen", dpid)
-            # Hier Ihre ARP/IP-Logik für Router implementieren
-            if arp_pkt:
-                self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
-                return
-
-            if ip_pkt:
-                self._handle_ip_for_router(datapath, ip_pkt, eth_pkt, in_port)
-                return
-
-        else:
-            if dpid == 1:
-                return
-            self.logger.info("Paket von Switch DPID %s empfangen", dpid)
-            # Hier Ihre Switch-Logik implementieren (z.B. MAC Learning)
-            self._handle_switch_packet(datapath, data, eth_pkt, in_port)
-
-    from ryu.base import app_manager
-from ryu.controller import ofp_event
-from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, set_ev_cls
-from ryu.ofproto import ofproto_v1_3
-from ryu.lib.packet import packet, ethernet, arp, ipv4, icmp
-from ryu.ofproto import ether as ether_types  # Import für EtherTypes (ETH_TYPE_ARP, ETH_TYPE_IP)
-from ryu.ofproto import inet  # Import für IP Protokollnummern (IPPROTO_ICMP)
-
-class LearningSwitch(app_manager.RyuApp):
-    OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
-
-    def __init__(self, *args, **kwargs):
-        super(LearningSwitch, self).__init__(*args, **kwargs)
-        
-        # Layer 2: MAC Learning Table
-        self.mac_to_port = {}
-
-        # Layer 3: Router Configuration
-        self.router_dpids = {2,3} # Beispiel DPID für einen Router
-
-        # Diese Dictionaries definieren die MAC- und IP-Adressen der Router-Interfaces
-        # Schlüssel: Portnummer am Router-Switch
-        # Wert: MAC- oder IP-Adresse als String
         self.port_to_own_mac = {
             1: "00:00:00:00:01:01", # MAC für Router-Interface an Port 1
             2: "00:00:00:00:01:02", # MAC für Router-Interface an Port 2
@@ -154,8 +50,6 @@ class LearningSwitch(app_manager.RyuApp):
             3: "192.168.1.1" # IP für Router-Interface an Port 3
         }
 
-        # ARP-Cache für den Router: Speichert IP -> MAC Mappings
-        # Wird durch eingehende ARP-Pakete gefüllt
         self.arp_cache = {}
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
@@ -219,7 +113,8 @@ class LearningSwitch(app_manager.RyuApp):
 
         else:
             self.logger.info("Paket von Switch DPID %s empfangen", dpid)
-
+            if dpid == 1:
+                return
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
         
