@@ -143,7 +143,7 @@ class LearningSwitch(app_manager.RyuApp):
         )
         
         
-        return_mac = eth_pkt_in.src_mac # the MAC of the last hop
+        return_mac = eth_pkt_in.src # the MAC of the last hop
 
         eth_reply = ethernet.ethernet(
             src_mac = requested_mac, # the router is currently sending
