@@ -155,7 +155,6 @@ class LearningSwitch(app_manager.RyuApp):
         # look if the destination is present in the mac - port table for the switch, if not flood all ports
         if dst_MAC in self.mac_to_port[dpid]:
             response = self.mac_to_port[dpid][dst_MAC] # port to send the message to
-
             # tell the stupid ass switch what the fuck to do (install flow):
             match = datapath.ofproto_parser.OFPMatch(eth_dst=dst_MAC) # a filter: when in ethernet the dst_MAC is found ... 
             actions = [datapath.ofproto_parser.OFPActionOutput(response)] # ... send in to this port
@@ -171,7 +170,7 @@ class LearningSwitch(app_manager.RyuApp):
         forward = datapath.ofproto_parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                                        in_port=in_port, actions=actions,
                                                        data=msg.data)
-        
+        self.logger.info(actions, forward)
         # Datapath sagen, schick den scheiß
         datapath.send_msg(forward)
 
