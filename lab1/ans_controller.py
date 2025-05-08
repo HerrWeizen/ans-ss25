@@ -37,7 +37,7 @@ class LearningSwitch(app_manager.RyuApp):
         self.mac_to_port = {}
 
         # Layer 3: Router Configuration
-        self.router_dpids = {4}
+        self.router_dpids = {1}
 
         self.port_to_own_mac = {
             1: "00:00:00:00:01:01",
@@ -80,14 +80,14 @@ class LearningSwitch(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
+
         msg = ev.msg
         data = msg.data
         datapath = msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         in_port = msg.match['in_port']
-        dpid = datapath.id # Die DPID des Geräts, das das Paket gesendet hat
-
+        dpid = datapath.id
 
         # get all possible pkt types
         pkt = packet.Packet(msg.data)
