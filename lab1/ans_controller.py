@@ -129,6 +129,7 @@ class LearningSwitch(app_manager.RyuApp):
         #    self.logger.info(f"ARP-Request not for our Router")
         #    return
         
+        out_port = None
         for port, ip in self.port_to_own_mac.items():
             if target_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
@@ -198,7 +199,7 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"The Requested IP of the IP-Packet is not know in the ARP-Table")
             return
         
-        # 10.0.1.3 - 10.0.1.1
+        out_port = None
         for port, ip in self.port_to_own_ip.items():
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
