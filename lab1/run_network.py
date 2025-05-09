@@ -79,10 +79,18 @@ def run():
 
     for h in ['h1', 'h2', 'ext', 'ser']:
         host = net.get(h)
+        # Default Gateways für die Hosts setzen
+        if h in ['h1', 'h2']:
+            host.cmd(f'ip route add default via 10.0.1.1')
+        elif h == 'ser':
+            host.cmd(f'ip route add default via 10.0.2.1')
+        elif h == 'ext':
+            host.cmd(f'ip route add default via 192.168.1.1')
+
         # Deaktiviere IPv6 global
         host.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
         host.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
-        
+
         # Zusätzlich: Link-Local-Adressen entfernen
         host.cmd("ip -6 addr flush dev {}".format(host.defaultIntf()))
 
