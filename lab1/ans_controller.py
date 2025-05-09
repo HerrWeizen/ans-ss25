@@ -118,8 +118,6 @@ class LearningSwitch(app_manager.RyuApp):
 
         
     def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
-        
-        return_port = in_port
 
         if arp_pkt_in.opcode != arp.ARP_REQUEST:
             return
@@ -131,10 +129,19 @@ class LearningSwitch(app_manager.RyuApp):
         #    self.logger.info(f"ARP-Request not for our Router")
         #    return
         
+        for port, ip in self.port_to_own_mac.items():
+            if target_ip.split(".")[0:3] == ip.split(".")[0:3]:
+                out_port = port
+                break
+
+        if out_port == None:
+            self.logger.info(f"No local interface found for IP {target_ip}")
+            return
+
         source_ip = arp_pkt_in.src_ip
         source_mac = eth_pkt_in.src
-        requested_mac =  self.port_to_own_mac[return_port]
-        requested_ip = self.port_to_own_ip[return_port]
+        requested_mac =  self.port_to_own_mac[out_port]
+        requested_ip = self.port_to_own_ip[out_port]
 
         self.arp_table[source_ip] = source_mac
 
@@ -161,10 +168,10 @@ class LearningSwitch(app_manager.RyuApp):
         reply_pkt.add_protocol(arp_reply)
         reply_pkt.serialize()
         
-        actions = [datapath.ofproto_parser.OFPActionOutput(return_port)]
+        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
         packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                           buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                          in_port=in_port,
+                                                          in_port=datapath.ofproto.OFPP_CONTROLLER,
                                                           actions=actions,
                                                           data=reply_pkt.data
                                                           )
@@ -201,7 +208,12 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"The Requested IP of the IP-Packet is not known in the Router")
             return
         
-        ip_pkt_out = ip_pkt_in
+        ip_pkt_out = ipv4.ipv4(
+                dst = ip_pkt_in.dst,
+                src = ip_pkt_in.src,
+                proto = ip_pkt_in.proto,
+                ttl = new_ttl
+        )
         ip_pkt_out.ttl = new_ttl
 
         eth_pkt_out = ethernet.ethernet(
