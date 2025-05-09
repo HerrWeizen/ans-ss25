@@ -253,7 +253,7 @@ class LearningSwitch(app_manager.RyuApp):
             eth_arp = ethernet.ethernet(
                 src=out_src_mac,
                 dst='ff:ff:ff:ff:ff:ff',
-                ethertype=ethernet.ETH_TYPE_ARP
+                ethertype= 0x0806 # ARP
             )
             arp_request_pkt = packet.Packet()
             arp_request_pkt.add_protocol(eth_arp)
