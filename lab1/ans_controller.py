@@ -210,12 +210,7 @@ class LearningSwitch(app_manager.RyuApp):
         
         try:
             dst_mac = self.arp_table[dst_ip]
-            ip_pkt_out = ipv4.ipv4(
-                    dst = ip_pkt_in.dst,
-                    src = ip_pkt_in.src,
-                    proto = ip_pkt_in.proto,
-                    ttl = new_ttl
-            )
+            ip_pkt_out = ip_pkt_in
             ip_pkt_out.ttl = new_ttl
 
             eth_pkt_out = ethernet.ethernet(
@@ -270,6 +265,7 @@ class LearningSwitch(app_manager.RyuApp):
             )
             datapath.send_msg(packet_out)
             self.logger.info(f"ARP request sent for {dst_ip} on port {out_port}")
+
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
         Handles incoming packets at the switch.
