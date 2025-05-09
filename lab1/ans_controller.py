@@ -150,8 +150,8 @@ class LearningSwitch(app_manager.RyuApp):
             opcode = arp.ARP_REPLY,
             src_mac = requested_mac, # The MAC of router that was requested from host
             src_ip = requested_ip, # The IP of router that was requested from host
-            dst_mac = arp_pkt_in.src_mac, # The MAC of the host that requested
-            dst_ip = arp_pkt_in.src_ip # The IP of the Host that requested
+            dst_mac = source_mac, # The MAC of the host that requested
+            dst_ip = source_ip # The IP of the Host that requested
         )
         
         
@@ -177,7 +177,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                           data=reply_pkt.data
                                                           )
         datapath.send_msg(packet_out)
-        self.logger.info(f"ARP-Reply for {target_ip} -> {requested_mac}")
+        self.logger.info(f"ARP-Reply for {source_ip} -> {requested_mac}")
 
         return None
     
