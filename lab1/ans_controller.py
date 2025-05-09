@@ -50,7 +50,7 @@ class LearningSwitch(app_manager.RyuApp):
             3: "192.168.1.1" # IP für Router-Interface an Port 3
         }
 
-        self.arp_cache = {}
+        self.arp_table = {}
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -131,8 +131,12 @@ class LearningSwitch(app_manager.RyuApp):
         #    self.logger.info(f"ARP-Request not for our Router")
         #    return
         
+        source_ip = arp_pkt_in.src_ip
+        source_mac = eth_pkt_in.src
         requested_mac =  self.port_to_own_mac[return_port]
         requested_ip = self.port_to_own_ip[return_port]
+
+        self.arp_table[source_ip] = source_mac
 
         arp_reply = arp.arp(
             opcode = arp.ARP_REPLY,
@@ -143,7 +147,7 @@ class LearningSwitch(app_manager.RyuApp):
         )
         
         
-        return_mac = eth_pkt_in.src # the MAC of the last hop
+        return_mac = source_mac # the MAC of the last hop
 
         eth_reply = ethernet.ethernet(
             src = requested_mac, # the router is currently sending
@@ -169,10 +173,57 @@ class LearningSwitch(app_manager.RyuApp):
 
         return None
     
-    def _handle_ip_for_router(datapath, ip_pkt_in, eth_pkt_in, in_port):
+    def _handle_ip_for_router(self, datapath, ip_pkt_in, eth_pkt_in, in_port):
         
         src_ip = ip_pkt_in.src
-        dest_ip = ip_pkt_in.dst
+        dst_ip = ip_pkt_in.dst
+        
+        if ip_pkt_in.ttl <= 1:
+            self.logger.info("TTL expired, drop IP-Packet")
+            return
+        else:
+            new_ttl = ip_pkt_in.ttl - 1
+
+        try:
+            dst_mac = self.arp_table[dst_ip]
+            print(self.arp_table)
+        except:
+            self.logger.info(f"The Requested IP of the IP-Packet is not know in the ARP-Table")
+            return
+        
+        # 10.0.1.3 - 10.0.1.1
+        for port, ip in self.port_to_own_ip.items():
+            if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
+                out_port = port
+                src_mac = self.port_to_own_mac[port] # The router will be the new source
+        
+        if out_port == None:
+            self.logger.info(f"The Requested IP of the IP-Packet is not known in the Router")
+            return
+        
+        ip_pkt_out = ip_pkt_in
+        ip_pkt_out.ttl = new_ttl
+
+        eth_pkt_out = ethernet.ethernet(
+            src = src_mac,
+            dst = dst_mac,
+            ethertype = eth_pkt_in.ethertype
+        )
+
+        out_pkt = packet.Packet()
+        out_pkt.add_protocol(eth_pkt_out)
+        out_pkt.add_protocol(ip_pkt_out)
+        out_pkt.serialize()
+        
+        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+        packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                          buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                          in_port=in_port,
+                                                          actions=actions,
+                                                          data=out_pkt.data
+                                                          )
+        datapath.send_msg(packet_out)
+        self.logger.info(f"IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
