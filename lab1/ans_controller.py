@@ -191,53 +191,85 @@ class LearningSwitch(app_manager.RyuApp):
             return
         else:
             new_ttl = ip_pkt_in.ttl - 1
-
-        try:
-            dst_mac = self.arp_table[dst_ip]
-            print(self.arp_table)
-        except:
-            self.logger.info(f"The Requested IP {dst_ip} of the IP-Packet is not know in the ARP-Table")
-            return
         
         out_port = None
+        out_src_mac = None
+        out_src_ip = None
         for port, ip in self.port_to_own_ip.items():
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
+                out_src_ip = ip
                 src_mac = self.port_to_own_mac[port] # The router will be the new source
-        self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
+                #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
+                break
+
+        
         if out_port == None:
-            self.logger.info(f"The Requested IP of the IP-Packet is not known in the Router")
+            self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
             return
         
-        ip_pkt_out = ipv4.ipv4(
-                dst = ip_pkt_in.dst,
-                src = ip_pkt_in.src,
-                proto = ip_pkt_in.proto,
-                ttl = new_ttl
-        )
-        ip_pkt_out.ttl = new_ttl
+        try:
+            dst_mac = self.arp_table[dst_ip]
+            ip_pkt_out = ipv4.ipv4(
+                    dst = ip_pkt_in.dst,
+                    src = ip_pkt_in.src,
+                    proto = ip_pkt_in.proto,
+                    ttl = new_ttl
+            )
+            ip_pkt_out.ttl = new_ttl
 
-        eth_pkt_out = ethernet.ethernet(
-            src = src_mac,
-            dst = dst_mac,
-            ethertype = eth_pkt_in.ethertype
-        )
+            eth_pkt_out = ethernet.ethernet(
+                src = out_src_mac,
+                dst = dst_mac,
+                ethertype = eth_pkt_in.ethertype
+            )
 
-        out_pkt = packet.Packet()
-        out_pkt.add_protocol(eth_pkt_out)
-        out_pkt.add_protocol(ip_pkt_out)
-        out_pkt.serialize()
+            out_pkt = packet.Packet()
+            out_pkt.add_protocol(eth_pkt_out)
+            out_pkt.add_protocol(ip_pkt_out)
+            out_pkt.serialize()
+            
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                            buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                            in_port=in_port,
+                                                            actions=actions,
+                                                            data=out_pkt.data
+                                                            )
+            datapath.send_msg(packet_out)
+            self.logger.info(f"IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
         
-        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-        packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
-                                                          buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                          in_port=in_port,
-                                                          actions=actions,
-                                                          data=out_pkt.data
-                                                          )
-        datapath.send_msg(packet_out)
-        self.logger.info(f"IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
+        except:
 
+            self.logger.info(f"MAC address for {dst_ip} not in ARP table. Sending ARP request.")
+            # Generiere ARP-Anfrage
+            arp_request = arp.arp(
+                opcode=arp.ARP_REQUEST,
+                src_mac=out_src_mac,
+                src_ip=out_src_ip,
+                dst_mac='ff:ff:ff:ff:ff:ff',
+                dst_ip=dst_ip
+            )
+            eth_arp = ethernet.ethernet(
+                src=out_src_mac,
+                dst='ff:ff:ff:ff:ff:ff',
+                ethertype=ethernet.ETH_TYPE_ARP
+            )
+            arp_request_pkt = packet.Packet()
+            arp_request_pkt.add_protocol(eth_arp)
+            arp_request_pkt.add_protocol(arp_request)
+            arp_request_pkt.serialize()
+
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)] # Sende ARP-Anfrage über den Ausgangs-Port
+            packet_out = datapath.ofproto_parser.OFPPacketOut(
+                datapath=datapath,
+                buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                in_port=datapath.ofproto.OFPP_CONTROLLER, # Controller sendet das Paket
+                actions=actions,
+                data=arp_request_pkt.data
+            )
+            datapath.send_msg(packet_out)
+            self.logger.info(f"ARP request sent for {dst_ip} on port {out_port}")
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
         Handles incoming packets at the switch.
