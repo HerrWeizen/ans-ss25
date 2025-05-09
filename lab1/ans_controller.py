@@ -101,7 +101,7 @@ class LearningSwitch(app_manager.RyuApp):
         is_router = dpid in self.router_dpids
 
         if is_router:
-            self.logger.info("Paket von Router DPID %s empfangen. Sender ist:", datapath.id)
+            self.logger.info("Paket von Router DPID %s empfangen. Sender ist: %s", datapath.id, eth_pkt.src)
             # Hier Ihre ARP/IP-Logik für Router implementieren
             if arp_pkt:
                 self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
@@ -112,7 +112,7 @@ class LearningSwitch(app_manager.RyuApp):
                 return
 
         else:
-            self.logger.info("Paket von Switch DPID %s empfangen", dpid)
+            self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
 
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
