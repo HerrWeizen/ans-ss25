@@ -69,6 +69,10 @@ def run():
     s3 = net.get('s3')
 
     net.start()
+
+    s3.cmd('ip addr add 10.0.1.1/24 dev s1-s3')
+    s3.cmd('ip addr add 10.0.2.1/24 dev s2-s3')
+    s3.cmd('ip addr add 192.168.1.1/24 dev ext-s3')
     s3.cmd('ip link set dev s1-s3 address 00:00:00:00:01:01')
     s3.cmd('ip link set dev s2-s3 address 00:00:00:00:01:02')
     s3.cmd('ip link set dev ext-s3 address 00:00:00:00:01:03')
