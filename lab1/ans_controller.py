@@ -234,7 +234,7 @@ class LearningSwitch(app_manager.RyuApp):
             datapath.send_msg(packet_out)
             self.logger.info(f"IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
         
-        except:
+        except KeyError:
 
             self.logger.info(f"MAC address for {dst_ip} not in ARP table. Sending ARP request.")
             # Generiere ARP-Anfrage
