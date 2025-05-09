@@ -210,7 +210,16 @@ class LearningSwitch(app_manager.RyuApp):
         
         try:
             dst_mac = self.arp_table[dst_ip]
-            ip_pkt_out = ip_pkt_in
+            ip_pkt_out = ipv4.ipv4(
+                version = ip_pkt_in.version,
+                tos=ip_pkt_in.tos,
+                flags = ip_pkt_in.flags,
+                ttl= new_ttl,
+                frag = ip_pkt_in.frag,
+                proto= ip_pkt_in.proto,
+                src = ip_pkt_in.src,
+                dst = ip_pkt_in.dst
+            )
             ip_pkt_out.ttl = new_ttl
 
             eth_pkt_out = ethernet.ethernet(
@@ -222,8 +231,10 @@ class LearningSwitch(app_manager.RyuApp):
             out_pkt = packet.Packet()
             out_pkt.add_protocol(eth_pkt_out)
             out_pkt.add_protocol(ip_pkt_out)
-            out_pkt.serialize()
-            
+            try:
+                out_pkt.serialize()
+            except:
+                self.logger.info(f"The Serialization is also in IP-Send fucked")
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                             buffer_id=datapath.ofproto.OFP_NO_BUFFER,
