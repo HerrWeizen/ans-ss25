@@ -215,7 +215,6 @@ class LearningSwitch(app_manager.RyuApp):
                 tos=ip_pkt_in.tos,
                 flags = ip_pkt_in.flags,
                 ttl= new_ttl,
-                frag = ip_pkt_in.frag,
                 proto= ip_pkt_in.proto,
                 src = ip_pkt_in.src,
                 dst = ip_pkt_in.dst
