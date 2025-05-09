@@ -101,7 +101,7 @@ class LearningSwitch(app_manager.RyuApp):
         is_router = dpid in self.router_dpids
 
         if is_router:
-            self.logger.info("Paket von Router DPID %s empfangen. Sender ist: %s", datapath.id, eth_pkt.src)
+            #self.logger.info("Paket von Router DPID %s empfangen. Sender ist: %s", datapath.id, eth_pkt.src)
             # Hier Ihre ARP/IP-Logik für Router implementieren
             if arp_pkt:
                 self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
@@ -112,7 +112,7 @@ class LearningSwitch(app_manager.RyuApp):
                 return
 
         else:
-            self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
+            #self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
 
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
@@ -123,7 +123,7 @@ class LearningSwitch(app_manager.RyuApp):
             return
         
         target_ip = arp_pkt_in.dst_ip # der der gesucht wird?
-        self.logger.info(f"ARP-Request for IP {target_ip} from {in_port} on {datapath.id}")
+        self.logger.info(f"ARP-Request for IP {target_ip} from {arp_pkt_in.src_ip}")
 
         #if target_ip not in self.port_to_own_ip.values():
         #    self.logger.info(f"ARP-Request not for our Router")
@@ -145,7 +145,7 @@ class LearningSwitch(app_manager.RyuApp):
         requested_ip = self.port_to_own_ip[out_port]
 
         self.arp_table[source_ip] = source_mac
-
+        self.logger.info(f"ARP-Table: The entry for IP {source_ip} has been set for MAC {source_mac}")
         arp_reply = arp.arp(
             opcode = arp.ARP_REPLY,
             src_mac = requested_mac, # The MAC of router that was requested from host
