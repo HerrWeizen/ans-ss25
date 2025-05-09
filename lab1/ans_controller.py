@@ -130,7 +130,7 @@ class LearningSwitch(app_manager.RyuApp):
         #    return
         
         out_port = None
-        for port, ip in self.port_to_own_mac.items():
+        for port, ip in self.port_to_own_ip.items():
             if target_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
                 break
