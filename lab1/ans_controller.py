@@ -253,7 +253,11 @@ class LearningSwitch(app_manager.RyuApp):
             arp_request_pkt = packet.Packet()
             arp_request_pkt.add_protocol(eth_arp)
             arp_request_pkt.add_protocol(arp_request)
-            arp_request_pkt.serialize()
+            try:
+                arp_request_pkt.serialize()
+            except:
+                self.logger.info(f"The Serialization was fucked")
+                return
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)] # Sende ARP-Anfrage über den Ausgangs-Port
             packet_out = datapath.ofproto_parser.OFPPacketOut(
