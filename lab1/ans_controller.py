@@ -196,7 +196,7 @@ class LearningSwitch(app_manager.RyuApp):
             dst_mac = self.arp_table[dst_ip]
             print(self.arp_table)
         except:
-            self.logger.info(f"The Requested IP of the IP-Packet is not know in the ARP-Table")
+            self.logger.info(f"The Requested IP {dst_ip} of the IP-Packet is not know in the ARP-Table")
             return
         
         out_port = None
@@ -204,7 +204,7 @@ class LearningSwitch(app_manager.RyuApp):
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
                 src_mac = self.port_to_own_mac[port] # The router will be the new source
-        
+        self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
         if out_port == None:
             self.logger.info(f"The Requested IP of the IP-Packet is not known in the Router")
             return
