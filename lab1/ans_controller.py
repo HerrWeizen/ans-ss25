@@ -199,7 +199,7 @@ class LearningSwitch(app_manager.RyuApp):
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
                 out_src_ip = ip
-                src_mac = self.port_to_own_mac[port] # The router will be the new source
+                out_src_mac = self.port_to_own_mac[port] # The router will be the new source
                 #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
                 break
 
@@ -326,4 +326,3 @@ class LearningSwitch(app_manager.RyuApp):
 
         # Send the packet-out message to the switch
         datapath.send_msg(packet_out)
-
