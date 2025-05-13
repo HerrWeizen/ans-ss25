@@ -198,6 +198,8 @@ class LearningSwitch(app_manager.RyuApp):
         
         ether_frame = original_packet.get_protocol(ethernet.ethernet)
         ip_frame = original_packet.get_protocol(ipv4.ipv4)
+        icmp_fame = original_packet.get_protocol(ipv4.ipv4)
+
         src_ip = ip_frame.src
         dst_ip = ip_frame.dst
         
@@ -213,6 +215,11 @@ class LearningSwitch(app_manager.RyuApp):
 
         for port_num, ip in self.port_to_own_ip.items():
             #print(dst_ip.split(".")[0:3], ip.split(".")[0:3])
+            if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
+                if icmp_frame.zxpr == icmp.ICMP_ECHO_REQUEST or icmp_frame == icmp.ICP_ECHO_REPLY:
+                    self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
+                    return
+                    
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port_num
                 router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
