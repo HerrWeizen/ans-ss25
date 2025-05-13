@@ -186,51 +186,49 @@ class LearningSwitch(app_manager.RyuApp):
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
-     
+            out_port = in_port
 
-        out_port = in_port
+            if out_port == None:
+                self.logger.info(f"ROUTER WARNING: No local interface found for IP {target_ip}")
+                return
 
-        if out_port == None:
-            self.logger.info(f"ROUTER WARNING: No local interface found for IP {target_ip}")
-            return
+            source_ip = arp_frame_in.src_ip
+            source_mac = ether_frame_in.src
+            requested_mac =  self.port_to_own_mac[out_port]
+            requested_ip = self.port_to_own_ip[out_port]
 
-        source_ip = arp_frame_in.src_ip
-        source_mac = ether_frame_in.src
-        requested_mac =  self.port_to_own_mac[out_port]
-        requested_ip = self.port_to_own_ip[out_port]
+            self.arp_table[source_ip] = source_mac
 
-        self.arp_table[source_ip] = source_mac
+            arp_reply = arp.arp(
+                opcode = arp.ARP_REPLY,
+                src_mac = requested_mac, # The MAC of router that was requested from host
+                src_ip = requested_ip, # The IP of router that was requested from host
+                dst_mac = source_mac, # The MAC of the host that requested
+                dst_ip = source_ip # The IP of the Host that requested
+            )
+            
+            return_mac = source_mac # the MAC of the last hop
 
-        arp_reply = arp.arp(
-            opcode = arp.ARP_REPLY,
-            src_mac = requested_mac, # The MAC of router that was requested from host
-            src_ip = requested_ip, # The IP of router that was requested from host
-            dst_mac = source_mac, # The MAC of the host that requested
-            dst_ip = source_ip # The IP of the Host that requested
-        )
-        
-        return_mac = source_mac # the MAC of the last hop
+            ether_reply = ethernet.ethernet(
+                src = requested_mac, # the router is currently sending
+                dst = return_mac, # send it to the last hop
+                ethertype = ether_frame_in.ethertype 
+            )
 
-        ether_reply = ethernet.ethernet(
-            src = requested_mac, # the router is currently sending
-            dst = return_mac, # send it to the last hop
-            ethertype = ether_frame_in.ethertype 
-        )
-
-        reply_pkt = packet.Packet()
-        reply_pkt.add_protocol(ether_reply)
-        reply_pkt.add_protocol(arp_reply)
-        reply_pkt.serialize()
-        
-        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-        packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
-                                                          buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                          in_port=datapath.ofproto.OFPP_CONTROLLER,
-                                                          actions=actions,
-                                                          data=reply_pkt.data
-                                                          )
-        datapath.send_msg(packet_out)
-        self.logger.info(f"ROUTER SENT: ARP-Reply for {source_ip, source_mac} -> {requested_mac}")
+            reply_pkt = packet.Packet()
+            reply_pkt.add_protocol(ether_reply)
+            reply_pkt.add_protocol(arp_reply)
+            reply_pkt.serialize()
+            
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                            buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                            in_port=datapath.ofproto.OFPP_CONTROLLER,
+                                                            actions=actions,
+                                                            data=reply_pkt.data
+                                                            )
+            datapath.send_msg(packet_out)
+            self.logger.info(f"ROUTER SENT: ARP-Reply for {source_ip, source_mac} -> {requested_mac}")
 
         return None
 
