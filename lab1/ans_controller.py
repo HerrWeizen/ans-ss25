@@ -217,7 +217,7 @@ class LearningSwitch(app_manager.RyuApp):
 
             if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 if ip_frame.proto == inet.IPPROTO_ICMP:
-                    icmp_fame = original_packet.get_protocol(ipv4.ipv4)
+                    icmp_frame = original_packet.get_protocol(ipv4.ipv4)
                     if icmp_frame.zxpr == icmp.ICMP_ECHO_REQUEST or icmp_frame == icmp.ICP_ECHO_REPLY:
                         self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
                         return
