@@ -199,97 +199,97 @@ class LearningSwitch(app_manager.RyuApp):
 """
 
     def _handle_arp_for_router(self, datapath, original_packet, in_port):
-            arp_frame_in = original_packet.get_protocol(arp.arp)
-            ether_frame_in = original_packet.get_protocol(ethernet.ethernet)
-            dpid = datapath.id
+        arp_frame_in = original_packet.get_protocol(arp.arp)
+        ether_frame_in = original_packet.get_protocol(ethernet.ethernet)
+        dpid = datapath.id
 
-            if arp_frame_in.opcode == arp.ARP_REPLY:
-                learned_ip = arp_frame_in.src_ip
-                learned_mac = arp_frame_in.src_mac # Die MAC-Adresse aus dem ARP-Payload ist die gesuchte
-                
-                self.logger.info(f"ROUTER DPID {dpid} RECEIVED: ARP-Reply for {learned_ip} (MAC: {learned_mac}) from L2 src {ether_frame_in.src}")
-                
-                # Nur in ARP-Tabelle eintragen, wenn die MAC nicht eine Broadcast/Multicast-Adresse ist
-                if not (int(learned_mac.split(':')[0], 16) & 1): # Check for multicast/broadcast bit
-                    self.arp_table[learned_ip] = learned_mac
-                    self.logger.info(f"ROUTER DPID {dpid}: Updated ARP-Table with [{learned_ip} : {learned_mac}]")
-
-                    # Prüfe Paketpuffer auf Pakete, die auf diese ARP-Auflösung warten
-                    buffer_key = (dpid, learned_ip)
-                    if buffer_key in self.packet_buffer:
-                        buffered_items = self.packet_buffer.pop(buffer_key) # Hole und entferne List
-                        self.logger.info(f"ROUTER DPID {dpid}: Found {len(buffered_items)} packet(s) in buffer for {learned_ip}. Sending now.")
-                        for item_out_port, item_router_src_mac, item_ip_frame_to_send, item_payload_protocols in buffered_items:
-                            
-                            pkt_to_resend = packet.Packet()
-                            pkt_to_resend.add_protocol(ethernet.ethernet(
-                                dst=learned_mac, # Die neu gelernte MAC-Adresse
-                                src=item_router_src_mac, # Die MAC-Adresse des Router-Ausgangsports
-                                ethertype=ether.ETH_TYPE_IP
-                            ))
-                            pkt_to_resend.add_protocol(item_ip_frame_to_send) # Der IP-Frame mit bereits dekrementiertem TTL
-                            for p_payload in item_payload_protocols: # Hänge den ursprünglichen Payload an
-                                pkt_to_resend.add_protocol(p_payload)
-                            pkt_to_resend.serialize()
-
-                            actions_resend = [datapath.ofproto_parser.OFPActionOutput(item_out_port)]
-                            out_resend = datapath.ofproto_parser.OFPPacketOut(
-                                datapath=datapath, buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                in_port=datapath.ofproto.OFPP_CONTROLLER, actions=actions_resend, data=pkt_to_resend.data)
-                            datapath.send_msg(out_resend)
-                            self.logger.info(f"ROUTER DPID {dpid}: Sent buffered IP packet to {item_ip_frame_to_send.dst} (MAC: {learned_mac}) via port {item_out_port}")
-                else:
-                    self.logger.warning(f"ROUTER DPID {dpid}: Received ARP reply from {learned_ip} with broadcast/multicast MAC {learned_mac}. ARP entry not created.")
-                return # ARP Reply verarbeitet
-
-            elif arp_frame_in.opcode == arp.ARP_REQUEST:
-                # Bestehende Logik für die Beantwortung von ARP-Anfragen für die eigene(n) IP(s) des Routers
-                target_ip = arp_frame_in.dst_ip # Die IP, für die die MAC gesucht wird
-                self.logger.info(f"ROUTER DPID {dpid} RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip} on port {in_port}")
-
-                # Prüfen, ob die Anfrage für eine der IPs des Routers auf diesem Port ist
-                if self.port_to_own_ip.get(in_port) == target_ip:
-                    source_ip_of_requestor = arp_frame_in.src_ip
-                    source_mac_of_requestor = ether_frame_in.src # MAC des Anfragenden Ethernet-Frames
-
-                    router_reply_mac = self.port_to_own_mac[in_port]
-                    router_reply_ip = self.port_to_own_ip[in_port]
-
-                    # Lerne die MAC des Anfragenden, falls noch nicht bekannt
-                    if source_ip_of_requestor not in self.arp_table or self.arp_table[source_ip_of_requestor] != source_mac_of_requestor :
-                        if not (int(source_mac_of_requestor.split(':')[0], 16) & 1):
-                            self.arp_table[source_ip_of_requestor] = source_mac_of_requestor
-                            self.logger.info(f"ROUTER DPID {dpid}: Learned/Updated ARP entry from ARP_REQUEST: [{source_ip_of_requestor} : {source_mac_of_requestor}]")
-
-
-                    arp_reply_payload = arp.arp(
-                        opcode=arp.ARP_REPLY,
-                        src_mac=router_reply_mac, 
-                        src_ip=router_reply_ip, 
-                        dst_mac=source_mac_of_requestor, 
-                        dst_ip=source_ip_of_requestor 
-                    )
-                    
-                    ether_reply_frame = ethernet.ethernet(
-                        src=router_reply_mac, 
-                        dst=source_mac_of_requestor, 
-                        ethertype=ether.ETH_TYPE_ARP 
-                    )
-
-                    reply_pkt = packet.Packet()
-                    reply_pkt.add_protocol(ether_reply_frame)
-                    reply_pkt.add_protocol(arp_reply_payload)
-                    reply_pkt.serialize()
-                    
-                    actions_reply = [datapath.ofproto_parser.OFPActionOutput(in_port)] # Sende auf dem Port zurück, auf dem die Anfrage kam
-                    out_reply = datapath.ofproto_parser.OFPPacketOut(
-                        datapath=datapath, buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                        in_port=datapath.ofproto.OFPP_CONTROLLER, actions=actions_reply, data=reply_pkt.data)
-                    datapath.send_msg(out_reply)
-                    self.logger.info(f"ROUTER DPID {dpid} SENT: ARP-Reply for our IP {router_reply_ip} to {source_ip_of_requestor} ({source_mac_of_requestor}) via port {in_port}")
-                else:
+        if arp_frame_in.opcode == arp.ARP_REPLY:
+            learned_ip = arp_frame_in.src_ip
+            learned_mac = arp_frame_in.src_mac # Die MAC-Adresse aus dem ARP-Payload ist die gesuchte
             
-                    self.logger.info(f"ROUTER DPID {dpid}: Received ARP Request for external IP {target_ip}. Ignoring.")
+            self.logger.info(f"ROUTER DPID {dpid} RECEIVED: ARP-Reply for {learned_ip} (MAC: {learned_mac}) from L2 src {ether_frame_in.src}")
+            
+            # Nur in ARP-Tabelle eintragen, wenn die MAC nicht eine Broadcast/Multicast-Adresse ist
+            if not (int(learned_mac.split(':')[0], 16) & 1): # Check for multicast/broadcast bit
+                self.arp_table[learned_ip] = learned_mac
+                self.logger.info(f"ROUTER DPID {dpid}: Updated ARP-Table with [{learned_ip} : {learned_mac}]")
+
+                # Prüfe Paketpuffer auf Pakete, die auf diese ARP-Auflösung warten
+                buffer_key = (dpid, learned_ip)
+                if buffer_key in self.packet_buffer:
+                    buffered_items = self.packet_buffer.pop(buffer_key) # Hole und entferne List
+                    self.logger.info(f"ROUTER DPID {dpid}: Found {len(buffered_items)} packet(s) in buffer for {learned_ip}. Sending now.")
+                    for item_out_port, item_router_src_mac, item_ip_frame_to_send, item_payload_protocols in buffered_items:
+                        
+                        pkt_to_resend = packet.Packet()
+                        pkt_to_resend.add_protocol(ethernet.ethernet(
+                            dst=learned_mac, # Die neu gelernte MAC-Adresse
+                            src=item_router_src_mac, # Die MAC-Adresse des Router-Ausgangsports
+                            ethertype=ether.ETH_TYPE_IP
+                        ))
+                        pkt_to_resend.add_protocol(item_ip_frame_to_send) # Der IP-Frame mit bereits dekrementiertem TTL
+                        for p_payload in item_payload_protocols: # Hänge den ursprünglichen Payload an
+                            pkt_to_resend.add_protocol(p_payload)
+                        pkt_to_resend.serialize()
+
+                        actions_resend = [datapath.ofproto_parser.OFPActionOutput(item_out_port)]
+                        out_resend = datapath.ofproto_parser.OFPPacketOut(
+                            datapath=datapath, buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                            in_port=datapath.ofproto.OFPP_CONTROLLER, actions=actions_resend, data=pkt_to_resend.data)
+                        datapath.send_msg(out_resend)
+                        self.logger.info(f"ROUTER DPID {dpid}: Sent buffered IP packet to {item_ip_frame_to_send.dst} (MAC: {learned_mac}) via port {item_out_port}")
+            else:
+                self.logger.warning(f"ROUTER DPID {dpid}: Received ARP reply from {learned_ip} with broadcast/multicast MAC {learned_mac}. ARP entry not created.")
+            return # ARP Reply verarbeitet
+
+        elif arp_frame_in.opcode == arp.ARP_REQUEST:
+            # Bestehende Logik für die Beantwortung von ARP-Anfragen für die eigene(n) IP(s) des Routers
+            target_ip = arp_frame_in.dst_ip # Die IP, für die die MAC gesucht wird
+            self.logger.info(f"ROUTER DPID {dpid} RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip} on port {in_port}")
+
+            # Prüfen, ob die Anfrage für eine der IPs des Routers auf diesem Port ist
+            if self.port_to_own_ip.get(in_port) == target_ip:
+                source_ip_of_requestor = arp_frame_in.src_ip
+                source_mac_of_requestor = ether_frame_in.src # MAC des Anfragenden Ethernet-Frames
+
+                router_reply_mac = self.port_to_own_mac[in_port]
+                router_reply_ip = self.port_to_own_ip[in_port]
+
+                # Lerne die MAC des Anfragenden, falls noch nicht bekannt
+                if source_ip_of_requestor not in self.arp_table or self.arp_table[source_ip_of_requestor] != source_mac_of_requestor :
+                    if not (int(source_mac_of_requestor.split(':')[0], 16) & 1):
+                        self.arp_table[source_ip_of_requestor] = source_mac_of_requestor
+                        self.logger.info(f"ROUTER DPID {dpid}: Learned/Updated ARP entry from ARP_REQUEST: [{source_ip_of_requestor} : {source_mac_of_requestor}]")
+
+
+                arp_reply_payload = arp.arp(
+                    opcode=arp.ARP_REPLY,
+                    src_mac=router_reply_mac, 
+                    src_ip=router_reply_ip, 
+                    dst_mac=source_mac_of_requestor, 
+                    dst_ip=source_ip_of_requestor 
+                )
+                
+                ether_reply_frame = ethernet.ethernet(
+                    src=router_reply_mac, 
+                    dst=source_mac_of_requestor, 
+                    ethertype=ether.ETH_TYPE_ARP 
+                )
+
+                reply_pkt = packet.Packet()
+                reply_pkt.add_protocol(ether_reply_frame)
+                reply_pkt.add_protocol(arp_reply_payload)
+                reply_pkt.serialize()
+                
+                actions_reply = [datapath.ofproto_parser.OFPActionOutput(in_port)] # Sende auf dem Port zurück, auf dem die Anfrage kam
+                out_reply = datapath.ofproto_parser.OFPPacketOut(
+                    datapath=datapath, buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                    in_port=datapath.ofproto.OFPP_CONTROLLER, actions=actions_reply, data=reply_pkt.data)
+                datapath.send_msg(out_reply)
+                self.logger.info(f"ROUTER DPID {dpid} SENT: ARP-Reply for our IP {router_reply_ip} to {source_ip_of_requestor} ({source_mac_of_requestor}) via port {in_port}")
+            else:
+        
+                self.logger.info(f"ROUTER DPID {dpid}: Received ARP Request for external IP {target_ip}. Ignoring.")
     """
     def _handle_ip_for_router(self, datapath, original_packet, in_port):
         
