@@ -197,6 +197,7 @@ class LearningSwitch(app_manager.RyuApp):
     
     def _handle_ip_for_router(self, datapath, ip_pkt_in, eth_pkt_in, in_port):
         
+        self.logger.info(f"ROUTER RECEIVED: Ping from {ip_pkt_in.src} to {ip_pkt_in.dst}")
         src_ip = ip_pkt_in.src
         dst_ip = ip_pkt_in.dst
         
