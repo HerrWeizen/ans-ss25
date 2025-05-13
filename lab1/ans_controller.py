@@ -107,7 +107,7 @@ class LearningSwitch(app_manager.RyuApp):
         is_router = dpid in self.router_dpids
 
         if is_router:
-            #self.logger.info("Paket von Router DPID %s empfangen. Sender ist: %s", datapath.id, eth_pkt.src)
+            self.logger.info("Paket von Router DPID %s empfangen. Sender ist: %s", datapath.id, eth_pkt.src)
             # Hier Ihre ARP/IP-Logik für Router implementieren
             if arp_pkt:
                 self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
@@ -144,7 +144,7 @@ class LearningSwitch(app_manager.RyuApp):
         #    return
         
         out_port = in_port
-        
+
         if out_port == None:
             self.logger.info(f"ROUTER WARNING: No local interface found for IP {target_ip}")
             return
