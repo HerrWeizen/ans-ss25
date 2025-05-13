@@ -112,6 +112,7 @@ class LearningSwitch(app_manager.RyuApp):
             elif ether_frame.ethertype == ether.ETH_TYPE_IP:
                 self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
+                pass
                 #self.logger.info(f"Receive unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
         else:
             self._handle_switch_packet(datapath, msg.data, ether_frame, in_port)
