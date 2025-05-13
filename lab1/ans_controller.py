@@ -131,7 +131,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         print(src_ip, dst_ip)
         print(self.port_to_own_ip.values())
-        if dst_ip in self.port_to_own_ip.values() and src_ip.split(".")[0:3] == dst_ip.split("."):
+        if dst_ip in self.port_to_own_ip.values() and src_ip.split(".")[0:3] == dst_ip.split(".")[0:3]:
 
             a = ether_frame.dst
             ether_frame.src = ether_frame.dst
