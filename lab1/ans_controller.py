@@ -124,6 +124,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         arp_frame_in = original_packet.get_protocol(arp.arp)
         ether_frame_in = original_packet.get_protocol(ethernet.ethernet)
+        target_ip = arp_frame_in.dst_ip
 
         if arp_frame_in.opcode != arp.ARP_REQUEST:
             self.logger.info(f"ROUTER RECEIVED: Received an ARP-Reply from {arp_frame_in.src_ip}")
@@ -139,6 +140,7 @@ class LearningSwitch(app_manager.RyuApp):
                 self.logger.info(f"There were no pending IP-Packets for the received information")
                 return
             else:
+                self.logger.info(f"There are pending IP-Packets for the received information of host: {arp_frame_in.src_ip}")
                 for pending_packet in received_ip_buffer:
                     ether_frame = pending_packet.get_protocol(ethernet.ethernet)
                     ip_frame = pending_packet.get_protocol(ipv4.ipv4)
@@ -183,7 +185,7 @@ class LearningSwitch(app_manager.RyuApp):
                         self.logger.info(f"ROUTER: IP-Packet sent {ip_frame.src} -> {ip_frame.dst}")
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
-        target_ip = arp_frame_in.dst_ip # der der gesucht wird?
+
      
 
         out_port = in_port
