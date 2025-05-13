@@ -133,7 +133,7 @@ class LearningSwitch(app_manager.RyuApp):
                 elif arp_pkt.opcode == arp.ARP_REPLY:
                     self.logger.info(f"Switch {datapath.id} got an ARP Reply from IP: {arp_pkt.src_ip} for {arp_pkt.dst_ip}")
             """
-            self._handle_switch_packet(datapath, msg.data, eth_frame, in_port)
+            self._handle_switch_packet(datapath, msg.data, ether_frame, in_port)
 
     def _handle_arp_for_router(self, datapath, original_packet, in_port):
 
