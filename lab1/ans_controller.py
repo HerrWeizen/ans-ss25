@@ -23,7 +23,7 @@ from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-from ryu.ofproto import ofproto_v1_3, ether
+from ryu.ofproto import ofproto_v1_3, ether, inet
 from ryu.lib.packet import ethernet, arp, ipv4, icmp, ether_types, packet # https://ryu.readthedocs.io/en/latest/library_packet.html
 
 class LearningSwitch(app_manager.RyuApp):
@@ -198,7 +198,7 @@ class LearningSwitch(app_manager.RyuApp):
         
         ether_frame = original_packet.get_protocol(ethernet.ethernet)
         ip_frame = original_packet.get_protocol(ipv4.ipv4)
-        icmp_fame = original_packet.get_protocol(ipv4.ipv4)
+
 
         src_ip = ip_frame.src
         dst_ip = ip_frame.dst
@@ -214,12 +214,14 @@ class LearningSwitch(app_manager.RyuApp):
         router_outgoing_ip = None
 
         for port_num, ip in self.port_to_own_ip.items():
-            #print(dst_ip.split(".")[0:3], ip.split(".")[0:3])
+
             if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
-                if icmp_frame.zxpr == icmp.ICMP_ECHO_REQUEST or icmp_frame == icmp.ICP_ECHO_REPLY:
-                    self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
-                    return
-                    
+                if ip_frame.proto == inet.IPPROTO_ICMP:
+                    icmp_fame = original_packet.get_protocol(ipv4.ipv4)
+                    if icmp_frame.zxpr == icmp.ICMP_ECHO_REQUEST or icmp_frame == icmp.ICP_ECHO_REPLY:
+                        self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
+                        return
+
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port_num
                 router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
