@@ -242,7 +242,7 @@ class LearningSwitch(app_manager.RyuApp):
             out_pkt.add_protocol(ip_pkt_out)
             try:
                 out_pkt.serialize()
-                self.logger.info(f"Serialized ARP packet: {out_pkt.data}")
+                #self.logger.info(f"Serialized ARP packet: {out_pkt.data}")
             except:
                 self.logger.info(f"The Serialization is also in IP-Send fucked")
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
@@ -276,7 +276,7 @@ class LearningSwitch(app_manager.RyuApp):
             arp_request_pkt.add_protocol(arp_request)
             try:
                 arp_request_pkt.serialize()
-                self.logger.info(f"Serialized ARP packet: {arp_request_pkt.data}")
+                #self.logger.info(f"Serialized ARP packet: {arp_request_pkt.data}")
             except:
                 self.logger.info(f"The Serialization was fucked")
                 return
@@ -326,6 +326,7 @@ class LearningSwitch(app_manager.RyuApp):
             self.add_flow(datapath, 1, match, actions)
         else:
             # Flood the packet on all ports if the destination is unknown
+            self.logger.info(f"Switch is flooding")
             out_port = ofproto.OFPP_FLOOD
 
         # Create the packet-out message to forward the current packet
