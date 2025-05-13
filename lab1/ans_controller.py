@@ -129,11 +129,8 @@ class LearningSwitch(app_manager.RyuApp):
         src_ip = ip_frame.src
         dst_ip = ip_frame.dst
 
+        print(src_ip, dst_ip)
         if dst_ip in self.port_to_own_ip.values() and src_ip.split(".")[0:3] == dst_ip.split("."):
-
-            if out_port == None:
-                self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
-                return
 
             a = ether_frame.dst
             ether_frame.src = ether_frame.dst
