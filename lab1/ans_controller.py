@@ -207,6 +207,7 @@ class LearningSwitch(app_manager.RyuApp):
         out_src_mac = None
         out_src_ip = None
         for port, ip in self.port_to_own_ip.items():
+            print(dst_ip.split(".")[0:3], ip.split(".")[0:3])
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
                 out_src_ip = ip
