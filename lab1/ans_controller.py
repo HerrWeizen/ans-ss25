@@ -254,6 +254,8 @@ class LearningSwitch(app_manager.RyuApp):
         src_ip = ip_frame.src
         dst_ip = ip_frame.dst
         
+        self.arp_table[src_ip] = ether_frame.src
+        
         self.logger.info(f"ROUTER RECEIVED: IP-Protocol from {src_ip} -> {dst_ip}")
         if ip_frame.ttl <= 1:
             self.logger.info("TTL expired, drop IP-Packet")
