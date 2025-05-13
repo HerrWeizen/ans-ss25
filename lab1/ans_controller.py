@@ -136,9 +136,9 @@ class LearningSwitch(app_manager.RyuApp):
             ether_frame.dst = a
 
             b = ip_frame.src
-            ip_frame.src = ether_frame.dst
+            ip_frame.src = ip_frame.dst
             ether_frame.dst = b
-            
+
             try:
                 original_packet.serialize()
             except Exception as e:
