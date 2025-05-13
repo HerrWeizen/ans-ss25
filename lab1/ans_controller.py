@@ -152,7 +152,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER SENT: Sent packet back to: {ether_frame.dst} (Port: {in_port})")
+            self.logger.info(f"ROUTER SENT: Sent IP-Packet back to: {ether_frame.dst} (Port: {in_port})")
 
             return False
         elif dst_ip in self.port_to_own_ip.values():
@@ -302,12 +302,12 @@ class LearningSwitch(app_manager.RyuApp):
         router_outgoing_ip = None
 
         for port_num, ip in self.port_to_own_ip.items(): 
-            #if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
-            #    if ip_frame.proto == inet.IPPROTO_ICMP:
-            #        icmp_frame = original_packet.get_protocol(icmp.icmp)
-            #        if icmp_frame.type == icmp.ICMP_ECHO_REQUEST or icmp_frame.type == icmp.ICMP_ECHO_REPLY:
-            #            self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
-            #            return
+            if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
+                if ip_frame.proto == inet.IPPROTO_ICMP:
+                    icmp_frame = original_packet.get_protocol(icmp.icmp)
+                    if icmp_frame.type == icmp.ICMP_ECHO_REQUEST or icmp_frame.type == icmp.ICMP_ECHO_REPLY:
+                        self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
+                        return
 
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port_num
