@@ -142,15 +142,15 @@ class LearningSwitch(app_manager.RyuApp):
             except Exception as e:
                 self.logger.info(f"ERROR: While trying to serialize: {e}")
 
-            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            actions = [datapath.ofproto_parser.OFPActionOutput(in_port)]
             packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                             buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                            in_port=in_port,
+                                                            in_port=datapath.ofproto.OFPP_CONTROLLER,
                                                             actions=actions,
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER SENT: IP-Packet sent back: {ether_frame.dst} (Port: {out_port})")
+            self.logger.info(f"ROUTER SENT: IP-Packet sent back: {ether_frame.dst} (Port: {in_port})")
 
             return False
         elif dst_ip in self.port_to_own_ip.values():
