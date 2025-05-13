@@ -113,7 +113,11 @@ class LearningSwitch(app_manager.RyuApp):
 
         else:
             #self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
-
+            if arp_pkt:
+                if arp_pkt == arp.ARP_REQUEST:
+                    self.logger.info(f"Switch {datapath.id} got an ARP Request for IP: {arp_pkt.dst_ip} from {arp_pkt.src_ip}")
+                elif arp_pkt == arp.ARP_REPLY:
+                    self.logger.info(f"Switch {datapath.id} got an ARP Reply from IP: {arp_pkt.src_ip} for {arp_pkt.dst_ip}")
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
         
