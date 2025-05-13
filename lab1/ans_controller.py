@@ -207,7 +207,7 @@ class LearningSwitch(app_manager.RyuApp):
         out_src_mac = None
         out_src_ip = None
         for port, ip in self.port_to_own_ip.items():
-            print(dst_ip.split(".")[0:3], ip.split(".")[0:3])
+            #print(dst_ip.split(".")[0:3], ip.split(".")[0:3])
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port
                 out_src_ip = ip
@@ -215,11 +215,13 @@ class LearningSwitch(app_manager.RyuApp):
                 #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
                 break
 
+        print(out_src_ip)
+        print(out_src_mac)
         
         if out_port == None:
             self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
             return
-        if out_src_mac or out_src_ip == None:
+        if out_src_mac == None or out_src_ip == None:
             self.logger.info(f"Not sure what but smth is f*")
             return
         
