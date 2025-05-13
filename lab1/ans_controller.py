@@ -58,11 +58,12 @@ class LearningSwitch(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        # ARP to Controller
+        # ARP to Controller""
+        """
         match = parser.OFPMatch(eth_type=0x0806)
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 1, match, actions)
-
+        """
         # Install default table-miss flow entry
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
@@ -117,12 +118,14 @@ class LearningSwitch(app_manager.RyuApp):
                 return
 
         else:
+            """
             self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
             if arp_pkt:
                 if arp_pkt.opcode == arp.ARP_REQUEST:
                     self.logger.info(f"Switch {datapath.id} got an ARP Request for IP: {arp_pkt.dst_ip} from {arp_pkt.src_ip}")
                 elif arp_pkt.opcode == arp.ARP_REPLY:
                     self.logger.info(f"Switch {datapath.id} got an ARP Reply from IP: {arp_pkt.src_ip} for {arp_pkt.dst_ip}")
+            """
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
         
