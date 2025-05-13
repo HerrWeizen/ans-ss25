@@ -137,10 +137,10 @@ class LearningSwitch(app_manager.RyuApp):
                 received_ip_buffer = []
 
             if received_ip_buffer == []:
-                self.logger.info(f"There were no pending IP-Packets for the received information")
+                self.logger.info(f"ROUTER: There were no pending IP-Packets for the received information")
                 return
             else:
-                self.logger.info(f"There are pending IP-Packets for the received information of host: {arp_frame_in.src_ip}")
+                self.logger.info(f"ROUTER: There are pending IP-Packets for the received information of host: {arp_frame_in.src_ip}")
                 for pending_packet in received_ip_buffer:
                     ether_frame = pending_packet.get_protocol(ethernet.ethernet)
                     ip_frame = pending_packet.get_protocol(ipv4.ipv4)
@@ -182,7 +182,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                                         data=original_packet.data
                                                                         )
                         datapath.send_msg(packet_out)
-                        self.logger.info(f"ROUTER: IP-Packet sent {ip_frame.src} -> {ip_frame.dst}")
+                        self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {output})")
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
@@ -278,7 +278,7 @@ class LearningSwitch(app_manager.RyuApp):
         try:
             dst_mac = self.arp_table[dst_ip]        
         except Exception as e:
-            self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
+            self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Initialise ARP-Request.")
 
         if dst_mac:
 
@@ -298,7 +298,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER: IP-Packet sent {ip_frame.src} -> {ip_frame.dst}")
+            sself.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {output})")
             
         else:
             
