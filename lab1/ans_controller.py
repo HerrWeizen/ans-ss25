@@ -142,7 +142,7 @@ class LearningSwitch(app_manager.RyuApp):
             else:
                 self.logger.info(f"ROUTER: There are pending IP-Packets for the received information of host: {arp_frame_in.src_ip}")
                 for pending_packet in received_ip_buffer:
-                    ether_frame = pending_packet.get_protocol(ethernet.ethernet)
+
                     ip_frame = pending_packet.get_protocol(ipv4.ipv4)
 
                     src_ip = ip_frame.src
@@ -166,20 +166,33 @@ class LearningSwitch(app_manager.RyuApp):
 
                     if dst_mac:
 
-                        ether_frame.src = router_outgoing_mac
-                        ether_frame.dst = dst_mac
+                        out_packet = packet.Packet()
 
+                        ether_frame = ethernet.ethernet(
+                            src = router_outgoing_mac,
+                            dst = dst_mac,
+                            ethertype=ether.ETH_TYPE_IP
+                        )
+
+                        out_packet.add_protocol(ether_frame)
+                        out_packet.add_protocol(ip_frame
+                        )
+
+                        if ip_frame.proto == inet.IPPROTO_ICMP:
+                            icmp_frame = pending_packet.get_protocol(icmp.icmp)
+                            new_pkt.add_protocol(icmp_frame)
+                            
                         try:
-                            pending_packet.serialize()
+                            out_packet.serialize()
                         except Exception as e:
                             self.logger.info(f"ERROR: While trying to serialize: {e}")
-                        self.logger.info(f"THIS PACKET IS ICMP: {ip_frame.proto==inet.IPPROTO_ICMP}")
+
                         actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
                         packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                                         buffer_id=datapath.ofproto.OFP_NO_BUFFER,
                                                                         in_port=in_port,
                                                                         actions=actions,
-                                                                        data=pending_packet.data
+                                                                        data=out_packet.data
                                                                         )
                         datapath.send_msg(packet_out)
                         self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
