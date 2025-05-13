@@ -170,7 +170,7 @@ class LearningSwitch(app_manager.RyuApp):
                         ether_frame.dst = dst_mac
 
                         try:
-                            original_packet.serialize()
+                            pending_packet.serialize()
                         except Exception as e:
                             self.logger.info(f"ERROR: While trying to serialize: {e}")
                         self.logger.info(f"THIS PACKET IS ICMP: {ip_frame==inet.IPPROTO_ICMP}")
