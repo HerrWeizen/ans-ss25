@@ -52,6 +52,8 @@ class LearningSwitch(app_manager.RyuApp):
 
         self.arp_table = {}
 
+        self.packet_buffer = {}
+
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
@@ -180,11 +182,12 @@ class LearningSwitch(app_manager.RyuApp):
         
         ether_frame = original_packet.get_protocol(ethernet.ethernet)
         ip_frame = original_packet.get_protocol(ipv4.ipv4)
-
+        dpid = datapath.id
 
         src_ip = ip_frame.src
         dst_ip = ip_frame.dst
         
+        self.logger.info(f"ROUTER RECEIVED: IP-Protocol from {src_ip} -> {dst_ip}")
         if ip_frame.ttl <= 1:
             self.logger.info("TTL expired, drop IP-Packet")
             return
@@ -195,8 +198,7 @@ class LearningSwitch(app_manager.RyuApp):
         router_outgoing_mac = None
         router_outgoing_ip = None
 
-        for port_num, ip in self.port_to_own_ip.items():
-            
+        for port_num, ip in self.port_to_own_ip.items(): 
             if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 if ip_frame.proto == inet.IPPROTO_ICMP:
                     icmp_frame = original_packet.get_protocol(icmp.icmp)
@@ -244,6 +246,7 @@ class LearningSwitch(app_manager.RyuApp):
             
         else:
             
+            self.
             arp_request_payload = arp.arp(
                 opcode=arp.ARP_REQUEST,
                 src_mac=router_outgoing_mac,
