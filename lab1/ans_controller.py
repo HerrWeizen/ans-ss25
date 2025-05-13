@@ -24,18 +24,16 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3, ether, inet
-from ryu.lib.packet import ethernet, arp, ipv4, icmp, ether_types, packet # https://ryu.readthedocs.io/en/latest/library_packet.html
+from ryu.lib.packet import ethernet, arp, ipv4, icmp, ether_types, packet
 
 class LearningSwitch(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
     def __init__(self, *args, **kwargs):
         super(LearningSwitch, self).__init__(*args, **kwargs)
-        
-        # Layer 2: MAC Learning Table
+
         self.mac_to_port = {}
 
-        # Layer 3: Router Configuration
         self.router_dpids = {3} 
 
         self.port_to_own_mac = {
@@ -60,13 +58,6 @@ class LearningSwitch(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        # ARP to Controller""
-        """
-        match = parser.OFPMatch(eth_type=0x0806)
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
-        self.add_flow(datapath, 1, match, actions)
-        """
-        # Install default table-miss flow entry
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
                                         ofproto.OFPCML_NO_BUFFER)]
@@ -92,19 +83,14 @@ class LearningSwitch(app_manager.RyuApp):
         datapath = msg.datapath
         ofproto = datapath.ofproto
         in_port = msg.match['in_port']
-        dpid = datapath.id # Die DPID des Geräts, das das Paket gesendet hat
+        dpid = datapath.id
 
-
-        # get all possible pkt types
         original_packet = packet.Packet(msg.data)
         ether_frame = original_packet.get_protocol(ethernet.ethernet)
-        #arp_pkt = pkt.get_protocol(arp.arp)
-        #ip_pkt = pkt.get_protocol(ipv4.ipv4)
 
         if not ether_frame:
             return
 
-        # Ist das Gerät ein Router?
         is_router = dpid in self.router_dpids
 
         if is_router:
@@ -117,7 +103,7 @@ class LearningSwitch(app_manager.RyuApp):
                     self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
                 pass
-                #self.logger.info(f"Receive unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
+                self.logger.info(f"Received unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
         else:
             self._handle_switch_packet(datapath, msg.data, ether_frame, in_port)
 
@@ -156,7 +142,7 @@ class LearningSwitch(app_manager.RyuApp):
 
             return False
         elif dst_ip in self.port_to_own_ip.values():
-            self.logger.info(f"ROUTER: {src_ip} tried to ping a Gateway he was not allowed to")
+            self.logger.info(f"WARNING: {src_ip} tried to ping a Gateway he was not allowed to")
             return False
         else:
             return True
@@ -307,14 +293,13 @@ class LearningSwitch(app_manager.RyuApp):
                 if ip_frame.proto == inet.IPPROTO_ICMP: # Is it a ICMP? If so ...
                     icmp_frame = original_packet.get_protocol(icmp.icmp) # Get the ICMP layer
                     if icmp_frame.type == icmp.ICMP_ECHO_REQUEST or icmp_frame.type == icmp.ICMP_ECHO_REPLY: # If Ping request or answer do ...
-                        self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
+                        self.logger.info(f"WARNING: There was a ping try to or from ext. This packet is dropped")
                         return # Drop
 
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port_num
                 router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
                 router_outgoing_ip = self.port_to_own_ip[port_num]
-                #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
                 break
 
         if out_port == None:
@@ -350,7 +335,6 @@ class LearningSwitch(app_manager.RyuApp):
             
         else:
             
-            #save packet in buffer for later reply
             if dst_ip not in self.packet_buffer:
                 self.packet_buffer[dst_ip] = []
             
@@ -367,7 +351,7 @@ class LearningSwitch(app_manager.RyuApp):
             arp_request_ether_frame = ethernet.ethernet(
                 src=router_outgoing_mac,
                 dst='ff:ff:ff:ff:ff:ff',
-                ethertype= ether.ETH_TYPE_ARP # ARP
+                ethertype= ether.ETH_TYPE_ARP
             )
 
             arp_request_pkt = packet.Packet()
@@ -380,11 +364,11 @@ class LearningSwitch(app_manager.RyuApp):
                 self.logger.info(f"ERROR: While trying to serialize: {e}")
 
 
-            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)] # Sende ARP-Anfrage über den Ausgangs-Port
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
             packet_out = datapath.ofproto_parser.OFPPacketOut(
                 datapath=datapath,
                 buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                in_port=datapath.ofproto.OFPP_CONTROLLER, # Controller sendet das Paket
+                in_port=datapath.ofproto.OFPP_CONTROLLER,
                 actions=actions,
                 data=arp_request_pkt.data
             )
@@ -392,15 +376,6 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"ROUTER SENT: ARP-Request sent for {dst_ip} on port {out_port}")
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
-        """
-        Handles incoming packets at the switch.
-
-        Args:
-            datapath (ryu.controller.controller.Datapath): The datapath object representing the switch.
-            data (bytes): The raw packet data.
-            eth_pkt (ryu.lib.packet.ethernet.ethernet): The parsed Ethernet packet.
-            in_port (int): The port the packet arrived on.
-        """
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
         dpid = datapath.id
