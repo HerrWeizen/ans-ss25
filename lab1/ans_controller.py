@@ -137,7 +137,7 @@ class LearningSwitch(app_manager.RyuApp):
 
             b = ip_frame.src
             ip_frame.src = ip_frame.dst
-            ether_frame.dst = b
+            ip_frame.dst = b
 
             try:
                 original_packet.serialize()
