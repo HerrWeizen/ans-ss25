@@ -208,6 +208,7 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
             return
         
+        
         try:
             dst_mac = self.arp_table[dst_ip]
             ip_pkt_out = ipv4.ipv4(
