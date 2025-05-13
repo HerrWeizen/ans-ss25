@@ -113,7 +113,7 @@ class LearningSwitch(app_manager.RyuApp):
                 self._handle_arp_for_router(datapath, original_packet, in_port)
 
             elif ether_frame.ethertype == ether.ETH_TYPE_IP:
-                if self._control_gateway(datapath, original_packet, in_port)
+                if self._control_gateway(datapath, original_packet, in_port):
                     self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
                 pass
