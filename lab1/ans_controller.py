@@ -218,17 +218,21 @@ class LearningSwitch(app_manager.RyuApp):
         if out_port == None:
             self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
             return
+        if out_src_mac or out_src_ip == None:
+            self.logger.info(f"Not sure what but smth is f*")
+            return
         
         
         try:
             dst_mac = self.arp_table[dst_ip]
+            print(dst_mac)
             ip_pkt_out = ipv4.ipv4(
                 version = ip_pkt_in.version,
                 tos=ip_pkt_in.tos,
                 flags = ip_pkt_in.flags,
                 ttl= new_ttl,
                 proto= ip_pkt_in.proto,
-                src = out_src_ip,
+                src = ip_pkt_in.src,
                 dst = ip_pkt_in.dst
             )
             ip_pkt_out.ttl = new_ttl
@@ -248,6 +252,7 @@ class LearningSwitch(app_manager.RyuApp):
             except:
                 self.logger.info(f"The Serialization is also in IP-Send fucked")
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            print(out_port)
             packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                             buffer_id=datapath.ofproto.OFP_NO_BUFFER,
                                                             in_port=in_port,
