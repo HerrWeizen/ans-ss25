@@ -135,7 +135,7 @@ class LearningSwitch(app_manager.RyuApp):
             else:
                 received_ip_buffer = []
 
-            if received_ip_buffer = []:
+            if received_ip_buffer == []:
                 self.logger.info(f"There were no pending IP-Packets for the received information")
                 return
             else:
