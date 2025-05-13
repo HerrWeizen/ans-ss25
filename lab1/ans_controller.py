@@ -113,13 +113,53 @@ class LearningSwitch(app_manager.RyuApp):
                 self._handle_arp_for_router(datapath, original_packet, in_port)
 
             elif ether_frame.ethertype == ether.ETH_TYPE_IP:
-
-                self._handle_ip_for_router(datapath, original_packet, in_port)
+                if self._control_gateway(datapath, original_packet, in_port)
+                    self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
                 pass
                 #self.logger.info(f"Receive unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
         else:
             self._handle_switch_packet(datapath, msg.data, ether_frame, in_port)
+
+    def _control_gateway(self, datapath, original_packet, in_port):
+        ether_frame = original_packet.get_protocol(ethernet.ethernet)
+        ip_frame = original_packet.get_protocol(ipv4.ipv4)
+        dpid = datapath.id
+
+        src_ip = ip_frame.src
+        dst_ip = ip_frame.dst
+
+        if dst_ip in self.port_to_own_ip.values() and src_ip.split(".")[0:3] == dst_ip.split("."):
+
+            if out_port == None:
+                self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
+                return
+
+            a = ether_frame.dst
+            ether_frame.src = ether_frame.dst
+            ether_frame.dst = a
+
+            try:
+                original_packet.serialize()
+            except Exception as e:
+                self.logger.info(f"ERROR: While trying to serialize: {e}")
+
+            actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                            buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                            in_port=in_port,
+                                                            actions=actions,
+                                                            data=original_packet.data
+                                                            )
+            datapath.send_msg(packet_out)
+            self.logger.info(f"ROUTER SENT: IP-Packet sent back: {ether_frame.dst} (Port: {out_port})")
+
+            return False
+        elif dst_ip in self.port_to_own_ip.values():
+            self.logger.info(f"ROUTER: {src_ip} tried to ping a Gateway he was not allowed to")
+            return False
+        else:
+            return True
 
     def _handle_arp_for_router(self, datapath, original_packet, in_port):
 
