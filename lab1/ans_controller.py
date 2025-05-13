@@ -130,7 +130,7 @@ class LearningSwitch(app_manager.RyuApp):
             self.arp_table[arp_frame_in.src_ip] = ether_frame_in.src
             self.logger.info(f"ROUTER: Adjusted ARP-Table with [{arp_frame_in.src_ip} : {ether_frame_in.src}]")
             
-            if arp_frame_in.src_ip in self.packet_buffer
+            if arp_frame_in.src_ip in self.packet_buffer:
                 received_ip_buffer = self.packet_buffer[arp_frame_in.src_ip]
             else:
                 received_ip_buffer = []
