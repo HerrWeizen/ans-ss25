@@ -173,7 +173,7 @@ class LearningSwitch(app_manager.RyuApp):
                             pending_packet.serialize()
                         except Exception as e:
                             self.logger.info(f"ERROR: While trying to serialize: {e}")
-                        self.logger.info(f"THIS PACKET IS ICMP: {ip_frame==inet.IPPROTO_ICMP}")
+                        self.logger.info(f"THIS PACKET IS ICMP: {ip_frame.proto==inet.IPPROTO_ICMP}")
                         actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
                         packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                                         buffer_id=datapath.ofproto.OFP_NO_BUFFER,
