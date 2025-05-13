@@ -303,7 +303,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         for port_num, ip in self.port_to_own_ip.items(): 
 
-            if src_ip.split(".")[0:3] == self.port_to_own_ip[3](".")[0:3] or dst_ip.split(".")[0:3] == self.port_to_own_ip[3](".")[0:3]: # Is paket from or to ext
+            if src_ip.split(".")[0:3] == self.port_to_own_ip[3].split(".")[0:3] or dst_ip.split(".")[0:3] == self.port_to_own_ip[3].split(".")[0:3]: # Is paket from or to ext
                 if ip_frame.proto == inet.IPPROTO_ICMP: # Is it a ICMP? If so ...
                     icmp_frame = original_packet.get_protocol(icmp.icmp) # Get the ICMP layer
                     if icmp_frame.type == icmp.ICMP_ECHO_REQUEST or icmp_frame.type == icmp.ICMP_ECHO_REPLY: # If Ping request or answer do ...
