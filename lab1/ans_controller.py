@@ -225,7 +225,7 @@ class LearningSwitch(app_manager.RyuApp):
             return
         
         dst_mac = False
-        
+
         try:
             dst_mac = self.arp_table[dst_ip]        
         except Exception as e:
@@ -257,13 +257,13 @@ class LearningSwitch(app_manager.RyuApp):
             # Generiere ARP-Anfrage
             arp_request_payload = arp.arp(
                 opcode=arp.ARP_REQUEST,
-                src_mac=out_src_mac,
-                src_ip=out_src_ip,
+                src_mac=router_outgoing_mac,
+                src_ip=router_outgoing_ip,
                 dst_mac='00:00:00:00:00:00',
                 dst_ip=dst_ip
             )
             arp_request_ether_frame = ethernet.ethernet(
-                src=out_src_mac,
+                src=router_outgoing_mac,
                 dst='ff:ff:ff:ff:ff:ff',
                 ethertype= ether.ETH_TYPE_ARP # ARP
             )
