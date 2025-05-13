@@ -94,12 +94,12 @@ class LearningSwitch(app_manager.RyuApp):
 
 
         # get all possible pkt types
-        pkt = packet.Packet(msg.data)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        arp_pkt = pkt.get_protocol(arp.arp)
-        ip_pkt = pkt.get_protocol(ipv4.ipv4)
+        original_packet = packet.Packet(msg.data)
+        ether_frame = original_packet.get_protocol(ethernet.ethernet)
+        #arp_pkt = pkt.get_protocol(arp.arp)
+        #ip_pkt = pkt.get_protocol(ipv4.ipv4)
 
-        if not eth_frame:
+        if not ether_frame:
             return
 
         # Ist das Gerät ein Router?
@@ -107,23 +107,22 @@ class LearningSwitch(app_manager.RyuApp):
 
         if is_router:
             
-            """
             if ether_frame.ethertype == ether.ETH_TYPE_ARP:
-                self.receive_arp(datapath, packet, ether_frame, in_port)
+                self._handle_arp_for_router(datapath, original_packet, in_port)
 
             elif ether_frame.ethertype == ether.ETH_TYPE_IP:
-                self.receive_ip(datapath, packet, ether_frame, in_port)
+                self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
                 self.logger.info(f"Receive unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
-            
-            """
-            if arp_pkt:
-                self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
-                return
 
-            if ip_pkt:
-                self._handle_ip_for_router(datapath, ip_pkt, eth_pkt, in_port)
-                return
+
+            #if arp_pkt:
+            #    self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
+            #    return
+
+            #if ip_pkt:
+            #    self._handle_ip_for_router(datapath, ip_pkt, eth_pkt, in_port)
+            #    return
 
         else:
             """
@@ -134,17 +133,20 @@ class LearningSwitch(app_manager.RyuApp):
                 elif arp_pkt.opcode == arp.ARP_REPLY:
                     self.logger.info(f"Switch {datapath.id} got an ARP Reply from IP: {arp_pkt.src_ip} for {arp_pkt.dst_ip}")
             """
-            self._handle_switch_packet(datapath, msg.data, eth_pkt, in_port)
+            self._handle_switch_packet(datapath, msg.data, eth_frame, in_port)
 
-    def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
+    def _handle_arp_for_router(self, datapath, original_packet, in_port):
 
-        if arp_pkt_in.opcode != arp.ARP_REQUEST:
-            self.logger.info(f"ROUTER RECEIVED: Received an ARP-Reply from {arp_pkt_in.src_ip}")
-            self.arp_table[arp_pkt_in.src_ip] = eth_pkt_in.src
-            self.logger.info(f"ROUTER: Adjusted ARP-Table with [{arp_pkt_in.src_ip} : {eth_pkt_in.src}]")
+        arp_frame_in = original_packet.get_protocol(arp.arp)
+        ether_frame_in = original_packet.get_protocol(ethernet.ethernet)
+
+        if arp_frame_in.opcode != arp.ARP_REQUEST:
+            self.logger.info(f"ROUTER RECEIVED: Received an ARP-Reply from {arp_frame_in.src_ip}")
+            self.arp_table[arp_frame_in.src_ip] = eth_frame_in.src
+            self.logger.info(f"ROUTER: Adjusted ARP-Table with [{arp_frame_in.src_ip} : {ether_frame_in.src}]")
         
-        target_ip = arp_pkt_in.dst_ip # der der gesucht wird?
-        self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_pkt_in.src_ip}")
+        target_ip = arp_frame_in.dst_ip # der der gesucht wird?
+        self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
         out_port = in_port
 
@@ -152,8 +154,8 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"ROUTER WARNING: No local interface found for IP {target_ip}")
             return
 
-        source_ip = arp_pkt_in.src_ip
-        source_mac = eth_pkt_in.src
+        source_ip = arp_frame_in.src_ip
+        source_mac = ether_frame_in.src
         requested_mac =  self.port_to_own_mac[out_port]
         requested_ip = self.port_to_own_ip[out_port]
 
@@ -168,15 +170,15 @@ class LearningSwitch(app_manager.RyuApp):
         
         return_mac = source_mac # the MAC of the last hop
 
-        eth_reply = ethernet.ethernet(
+        ether_reply = ethernet.ethernet(
             src = requested_mac, # the router is currently sending
             dst = return_mac, # send it to the last hop
-            ethertype = eth_pkt_in.ethertype 
+            ethertype = eth_frame_in.ethertype 
         )
 
 
         reply_pkt = packet.Packet()
-        reply_pkt.add_protocol(eth_reply)
+        reply_pkt.add_protocol(ether_reply)
         reply_pkt.add_protocol(arp_reply)
         reply_pkt.serialize()
         
@@ -192,29 +194,29 @@ class LearningSwitch(app_manager.RyuApp):
 
         return None
     
-    def _handle_ip_for_router(self, datapath, ip_pkt_in, eth_pkt_in, in_port):
+    def _handle_ip_for_router(self, datapath, original_packet, in_port):
         
-        payload = ip_pkt_in.payload
-
-        src_ip = ip_pkt_in.src
-        dst_ip = ip_pkt_in.dst
+        ether_frame = original_packet.get_protocol(ethernet.ethernet)
+        ip_frame = original_packet.get_protocol(ipv4.ipv4)
+        src_ip = ip_frame.src
+        dst_ip = ip_frame.dst
         
-        if ip_pkt_in.ttl <= 1:
+        if ip_frame.ttl <= 1:
             self.logger.info("TTL expired, drop IP-Packet")
             return
         else:
-            new_ttl = ip_pkt_in.ttl - 1
+            ip_frame.ttl -=  1
         
         out_port = None
-        out_src_mac = None
-        out_src_ip = None
+        router_outgoing_mac = None
+        router_outgoing_ip = None
 
-        for port, ip in self.port_to_own_ip.items():
+        for port_num, ip in self.port_to_own_ip.items():
             #print(dst_ip.split(".")[0:3], ip.split(".")[0:3])
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
-                out_port = port
-                out_src_ip = ip
-                out_src_mac = self.port_to_own_mac[port] # The router will be the new source
+                out_port = port_num
+                router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
+                router_outgoing_ip = self.port_to_own_ip[port_num]
                 #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
                 break
 
@@ -226,74 +228,55 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"Not sure what but smth is f*")
             return
         
+        dst_mac = self.arp_table[dst_ip]        
         
-        try:
-            dst_mac = self.arp_table[dst_ip]
+        
+        if dst_mac:
 
-            ip_pkt_out = ipv4.ipv4(
-                version = ip_pkt_in.version,
-                tos=ip_pkt_in.tos,
-                flags = ip_pkt_in.flags,
-                ttl= new_ttl,
-                proto= ip_pkt_in.proto,
-                src = ip_pkt_in.src,
-                dst = ip_pkt_in.dst
-            )
-
-            eth_pkt_out = ethernet.ethernet(
-                src = out_src_mac,
-                dst = dst_mac,
-                ethertype = eth_pkt_in.ethertype
-            )
-
-            out_pkt = packet.Packet()
-            out_pkt.add_protocol(eth_pkt_out)
-            out_pkt.add_protocol(ip_pkt_out)
-            if payload:
-                out_pkt.add_protocol(payload)
+            ether_frame.src = router_outgoing_mac
+            ether_frame.dst = dst_mac
 
             try:
                 out_pkt.serialize()
-                #self.logger.info(f"Serialized ARP packet: {out_pkt.data}")
-            except:
-                self.logger.info(f"The Serialization is also in IP-Send fucked")
+            except Exception as e:
+                self.logger.info(f"ERROR: While trying to serialize: {e}")
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-            self.logger.info(f"Output PORT: {out_port}")
             packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                             buffer_id=datapath.ofproto.OFP_NO_BUFFER,
                                                             in_port=in_port,
                                                             actions=actions,
-                                                            data=out_pkt.data
+                                                            data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER: IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
+            self.logger.info(f"ROUTER: IP-Packet sent {ip_pkt_in.src} -> {ip_pkt_in.dst}")
             
-        except KeyError:
+        else:
 
             self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
             # Generiere ARP-Anfrage
-            arp_request = arp.arp(
+            arp_request_payload = arp.arp(
                 opcode=arp.ARP_REQUEST,
                 src_mac=out_src_mac,
                 src_ip=out_src_ip,
-                dst_mac='ff:ff:ff:ff:ff:ff',
+                dst_mac='00:00:00:00:00:00',
                 dst_ip=dst_ip
             )
-            eth_arp = ethernet.ethernet(
+            arp_request_ether_frame = ethernet.ethernet(
                 src=out_src_mac,
                 dst='ff:ff:ff:ff:ff:ff',
-                ethertype= 0x0806 # ARP
+                ethertype= ether.ETH_TYPE_ARP # ARP
             )
+
             arp_request_pkt = packet.Packet()
-            arp_request_pkt.add_protocol(eth_arp)
-            arp_request_pkt.add_protocol(arp_request)
+            arp_request_pkt.add_protocol(arp_request_ether_frame)
+            arp_request_pkt.add_protocol(arp_request_payload)
+
             try:
                 arp_request_pkt.serialize()
-                #self.logger.info(f"Serialized ARP packet: {arp_request_pkt.data}")
-            except:
-                self.logger.info(f"The Serialization was fucked")
-                return
+            except Exception as e:  
+                self.logger.info(f"ERROR: While trying to serialize: {e}")
+
 
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)] # Sende ARP-Anfrage über den Ausgangs-Port
             packet_out = datapath.ofproto_parser.OFPPacketOut(
