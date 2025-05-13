@@ -129,9 +129,62 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"ROUTER RECEIVED: Received an ARP-Reply from {arp_frame_in.src_ip}")
             self.arp_table[arp_frame_in.src_ip] = ether_frame_in.src
             self.logger.info(f"ROUTER: Adjusted ARP-Table with [{arp_frame_in.src_ip} : {ether_frame_in.src}]")
-        
+            
+            if arp_frame_in.src_ip in self.packet_buffer
+                received_ip_buffer = self.packet_buffer[arp_frame_in.src_ip]
+            else:
+                received_ip_buffer = []
+
+            if received_ip_buffer = []:
+                self.logger.info(f"There were no pending IP-Packets for the received information")
+                return
+            else:
+                for pending_packet in received_ip_buffer:
+                    ether_frame = pending_packet.get_protocol(ethernet.ethernet)
+                    ip_frame = pending_packet.get_protocol(ipv4.ipv4)
+
+                    src_ip = ip_frame.src
+                    dst_ip = ip_frame.dst
+
+                    out_port = None
+                    router_outgoing_mac = None
+                    router_outgoing_ip = None
+
+                    for port_num, ip in self.port_to_own_ip.items(): 
+                        if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
+                            out_port = port_num
+                            router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
+                            router_outgoing_ip = self.port_to_own_ip[port_num]
+                            #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
+                            break
+                    try:
+                        dst_mac = self.arp_table[dst_ip]        
+                    except Exception as e:
+                        self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
+
+                    if dst_mac:
+
+                        ether_frame.src = router_outgoing_mac
+                        ether_frame.dst = dst_mac
+
+                        try:
+                            original_packet.serialize()
+                        except Exception as e:
+                            self.logger.info(f"ERROR: While trying to serialize: {e}")
+
+                        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+                        packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                                        buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                                        in_port=in_port,
+                                                                        actions=actions,
+                                                                        data=original_packet.data
+                                                                        )
+                        datapath.send_msg(packet_out)
+                        self.logger.info(f"ROUTER: IP-Packet sent {ip_frame.src} -> {ip_frame.dst}")
+        else:
+            self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
         target_ip = arp_frame_in.dst_ip # der der gesucht wird?
-        self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
+     
 
         out_port = in_port
 
@@ -247,6 +300,13 @@ class LearningSwitch(app_manager.RyuApp):
             
         else:
             
+            #save packet in buffer for later reply
+            if dst_ip not in self.packet_buffer[]
+                self.packet_buffer[dst_ip] = []
+            
+            self.packet_buffer[dst_ip].append(original_packet)
+            self.logger.info(f"ROUTER: IP-Packet was buffered {src_ip} -> {dst_ip}")
+
             arp_request_payload = arp.arp(
                 opcode=arp.ARP_REQUEST,
                 src_mac=router_outgoing_mac,
