@@ -143,12 +143,8 @@ class LearningSwitch(app_manager.RyuApp):
         #    self.logger.info(f"ARP-Request not for our Router")
         #    return
         
-        out_port = None
-        for port, ip in self.port_to_own_ip.items():
-            if target_ip.split(".")[0:3] == ip.split(".")[0:3]:
-                out_port = port
-                break
-
+        out_port = in_port
+        
         if out_port == None:
             self.logger.info(f"ROUTER WARNING: No local interface found for IP {target_ip}")
             return
@@ -191,7 +187,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                           data=reply_pkt.data
                                                           )
         datapath.send_msg(packet_out)
-        self.logger.info(f"ROUTER SENT: ARP-Reply for {source_ip} -> {requested_mac}")
+        self.logger.info(f"ROUTER SENT: ARP-Reply for {source_ip, source_mac} -> {requested_mac}")
 
         return None
     
