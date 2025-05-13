@@ -133,7 +133,7 @@ class LearningSwitch(app_manager.RyuApp):
         print(self.port_to_own_ip.values())
         if dst_ip in self.port_to_own_ip.values() and src_ip.split(".")[0:3] == dst_ip.split(".")[0:3]:
 
-            a = ether_frame.dst
+            a = ether_frame.src
             ether_frame.src = ether_frame.dst
             ether_frame.dst = a
 
@@ -150,7 +150,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER SENT: IP-Packet sent back: {ether_frame.dst} (Port: {in_port})")
+            self.logger.info(f"ROUTER SENT: Sent {ether_frame.dst} (Port: {in_port})")
 
             return False
         elif dst_ip in self.port_to_own_ip.values():
@@ -182,6 +182,7 @@ class LearningSwitch(app_manager.RyuApp):
                 self.logger.info(f"ROUTER: There are pending IP-Packets for the received information of host: {arp_frame_in.src_ip}")
                 for pending_packet in received_ip_buffer:
                     ip_frame = pending_packet.get_protocol(ipv4.ipv4)
+                    ip_frame.ttl -= 1
                     src_ip = ip_frame.src
                     dst_ip = ip_frame.dst
 
