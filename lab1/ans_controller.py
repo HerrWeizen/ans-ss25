@@ -246,7 +246,6 @@ class LearningSwitch(app_manager.RyuApp):
             
         else:
             
-            self.
             arp_request_payload = arp.arp(
                 opcode=arp.ARP_REQUEST,
                 src_mac=router_outgoing_mac,
