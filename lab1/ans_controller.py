@@ -129,14 +129,16 @@ class LearningSwitch(app_manager.RyuApp):
         src_ip = ip_frame.src
         dst_ip = ip_frame.dst
 
-        print(src_ip, dst_ip)
-        print(self.port_to_own_ip.values())
         if dst_ip in self.port_to_own_ip.values() and src_ip.split(".")[0:3] == dst_ip.split(".")[0:3]:
 
             a = ether_frame.src
             ether_frame.src = ether_frame.dst
             ether_frame.dst = a
 
+            b = ip_frame.src
+            ip_frame.src = ether_frame.dst
+            ether_frame.dst = b
+            
             try:
                 original_packet.serialize()
             except Exception as e:
@@ -150,7 +152,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER SENT: Sent {ether_frame.dst} (Port: {in_port})")
+            self.logger.info(f"ROUTER SENT: Sent packet back to: {ether_frame.dst} (Port: {in_port})")
 
             return False
         elif dst_ip in self.port_to_own_ip.values():
