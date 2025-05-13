@@ -167,7 +167,7 @@ class LearningSwitch(app_manager.RyuApp):
                         src=router_outgoing_mac,
                         ethertype=ether.ETH_TYPE_IP
                     )
-                    
+
                     new_pkt = packet.Packet()
                     new_pkt.add_protocol(new_ether)
                     for p in pending_packet.protocols:
@@ -182,7 +182,7 @@ class LearningSwitch(app_manager.RyuApp):
                     actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
                     packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
                                                                     buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                                    in_port=in_port,
+                                                                    in_port=datapath.ofproto.OFPP_CONTROLLER,
                                                                     actions=actions,
                                                                     data=new_pkt.data
                                                                     )
