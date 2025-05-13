@@ -113,6 +113,7 @@ class LearningSwitch(app_manager.RyuApp):
                 self._handle_arp_for_router(datapath, original_packet, in_port)
 
             elif ether_frame.ethertype == ether.ETH_TYPE_IP:
+                self.logger.info(f"There was an IP packet incomming!")
                 self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
                 pass
@@ -159,7 +160,7 @@ class LearningSwitch(app_manager.RyuApp):
                     try:
                         dst_mac = self.arp_table[dst_ip]        
                     except Exception as e:
-                        self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
+                        self.logger.info(f"ROUTER BUFFER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
 
                     new_ether = ethernet.ethernet(
                         dst=dst_mac,
@@ -168,7 +169,6 @@ class LearningSwitch(app_manager.RyuApp):
                     )
 
                     if dst_mac:
-
                         new_ether = ethernet.ethernet(
                         dst=dst_mac,
                         src=router_outgoing_mac,
@@ -195,7 +195,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                                     )
                     datapath.send_msg(packet_out)
                     self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {new_ether.dst} (Port: {out_port})")
-                    received_ip_buffer.remove(pending_packet)
+                received_ip_buffer.clear()
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
