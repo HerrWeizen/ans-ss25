@@ -194,7 +194,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                                     data=new_pkt.data
                                                                     )
                     datapath.send_msg(packet_out)
-                    self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
+                    self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {new_ether.dst} (Port: {out_port})")
                     received_ip_buffer.remove(pending)
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
@@ -255,7 +255,7 @@ class LearningSwitch(app_manager.RyuApp):
         dst_ip = ip_frame.dst
         
         self.arp_table[src_ip] = ether_frame.src
-        
+
         self.logger.info(f"ROUTER RECEIVED: IP-Protocol from {src_ip} -> {dst_ip}")
         if ip_frame.ttl <= 1:
             self.logger.info("TTL expired, drop IP-Packet")
