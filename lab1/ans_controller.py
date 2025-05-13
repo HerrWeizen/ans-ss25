@@ -183,6 +183,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                                         )
                         datapath.send_msg(packet_out)
                         self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
+                        received_ip_buffer.remove(pending_packet)
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
