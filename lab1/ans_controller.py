@@ -301,7 +301,7 @@ class LearningSwitch(app_manager.RyuApp):
         else:
             
             #save packet in buffer for later reply
-            if dst_ip not in self.packet_buffer[]
+            if dst_ip not in self.packet_buffer:
                 self.packet_buffer[dst_ip] = []
             
             self.packet_buffer[dst_ip].append(original_packet)
