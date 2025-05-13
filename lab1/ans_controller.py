@@ -132,7 +132,9 @@ class LearningSwitch(app_manager.RyuApp):
     def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
 
         if arp_pkt_in.opcode != arp.ARP_REQUEST:
-            return
+            self.logger.info(f"Router received an ARP-Reply from {arp_pkt_in.src_ip}")
+            self.arp_table[arp_pkt_in.src_ip] = eth_pkt_in.src
+            self.logger.info(f"Adjusted ARP-Table with [{arp_pkt_in.src_ip} : {eth_pkt_in.src}]")
         
         target_ip = arp_pkt_in.dst_ip # der der gesucht wird?
         self.logger.info(f"ARP-Request for IP {target_ip} from {arp_pkt_in.src_ip}")
