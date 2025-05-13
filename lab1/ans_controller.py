@@ -296,7 +296,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            sself.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
+            self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
             
         else:
             
