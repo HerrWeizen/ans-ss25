@@ -132,12 +132,12 @@ class LearningSwitch(app_manager.RyuApp):
     def _handle_arp_for_router(self, datapath, arp_pkt_in, eth_pkt_in, in_port):
 
         if arp_pkt_in.opcode != arp.ARP_REQUEST:
-            self.logger.info(f"Router received an ARP-Reply from {arp_pkt_in.src_ip}")
+            self.logger.info(f"ROUTER RECEIVED: Received an ARP-Reply from {arp_pkt_in.src_ip}")
             self.arp_table[arp_pkt_in.src_ip] = eth_pkt_in.src
-            self.logger.info(f"Adjusted ARP-Table with [{arp_pkt_in.src_ip} : {eth_pkt_in.src}]")
+            self.logger.info(f"ROUTER: Adjusted ARP-Table with [{arp_pkt_in.src_ip} : {eth_pkt_in.src}]")
         
         target_ip = arp_pkt_in.dst_ip # der der gesucht wird?
-        self.logger.info(f"ARP-Request for IP {target_ip} from {arp_pkt_in.src_ip}")
+        self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_pkt_in.src_ip}")
 
         #if target_ip not in self.port_to_own_ip.values():
         #    self.logger.info(f"ARP-Request not for our Router")
@@ -150,7 +150,7 @@ class LearningSwitch(app_manager.RyuApp):
                 break
 
         if out_port == None:
-            self.logger.info(f"No local interface found for IP {target_ip}")
+            self.logger.info(f"ROUTER WARNING: No local interface found for IP {target_ip}")
             return
 
         source_ip = arp_pkt_in.src_ip
@@ -158,8 +158,8 @@ class LearningSwitch(app_manager.RyuApp):
         requested_mac =  self.port_to_own_mac[out_port]
         requested_ip = self.port_to_own_ip[out_port]
 
-        self.arp_table[source_ip] = source_mac
-        self.logger.info(f"ARP-Table: The entry for IP {source_ip} has been set for MAC {source_mac}")
+        #self.arp_table[source_ip] = source_mac
+        #self.logger.info(f"ARP-Table: The entry for IP {source_ip} has been set for MAC {source_mac}")
         arp_reply = arp.arp(
             opcode = arp.ARP_REPLY,
             src_mac = requested_mac, # The MAC of router that was requested from host
@@ -191,7 +191,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                           data=reply_pkt.data
                                                           )
         datapath.send_msg(packet_out)
-        self.logger.info(f"ARP-Reply for {source_ip} -> {requested_mac}")
+        self.logger.info(f"ROUTER SENT: ARP-Reply for {source_ip} -> {requested_mac}")
 
         return None
     
@@ -258,11 +258,11 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=out_pkt.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
+            self.logger.info(f"ROUTER: IP-Packet routed from {ip_pkt_in.src} -> {ip_pkt_in.dst}")
         
         except KeyError:
 
-            self.logger.info(f"MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
+            self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
             # Generiere ARP-Anfrage
             arp_request = arp.arp(
                 opcode=arp.ARP_REQUEST,
@@ -295,7 +295,7 @@ class LearningSwitch(app_manager.RyuApp):
                 data=arp_request_pkt.data
             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ARP-Request sent for {dst_ip} on port {out_port}")
+            self.logger.info(f"ROUTER SENT: ARP-Request sent for {dst_ip} on port {out_port}")
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
