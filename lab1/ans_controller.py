@@ -106,33 +106,14 @@ class LearningSwitch(app_manager.RyuApp):
         is_router = dpid in self.router_dpids
 
         if is_router:
-            
             if ether_frame.ethertype == ether.ETH_TYPE_ARP:
                 self._handle_arp_for_router(datapath, original_packet, in_port)
 
             elif ether_frame.ethertype == ether.ETH_TYPE_IP:
                 self._handle_ip_for_router(datapath, original_packet, in_port)
             else:
-                self.logger.info(f"Receive unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
-
-
-            #if arp_pkt:
-            #    self._handle_arp_for_router(datapath, arp_pkt, eth_pkt, in_port)
-            #    return
-
-            #if ip_pkt:
-            #    self._handle_ip_for_router(datapath, ip_pkt, eth_pkt, in_port)
-            #    return
-
+                #self.logger.info(f"Receive unknown packet {ether_frame.src} => {ether_frame.dst} (port: {in_port})")
         else:
-            """
-            self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
-            if arp_pkt:
-                if arp_pkt.opcode == arp.ARP_REQUEST:
-                    self.logger.info(f"Switch {datapath.id} got an ARP Request for IP: {arp_pkt.dst_ip} from {arp_pkt.src_ip}")
-                elif arp_pkt.opcode == arp.ARP_REPLY:
-                    self.logger.info(f"Switch {datapath.id} got an ARP Reply from IP: {arp_pkt.src_ip} for {arp_pkt.dst_ip}")
-            """
             self._handle_switch_packet(datapath, msg.data, ether_frame, in_port)
 
     def _handle_arp_for_router(self, datapath, original_packet, in_port):
@@ -169,7 +150,6 @@ class LearningSwitch(app_manager.RyuApp):
             dst_ip = source_ip # The IP of the Host that requested
         )
         
-        
         return_mac = source_mac # the MAC of the last hop
 
         ether_reply = ethernet.ethernet(
@@ -177,7 +157,6 @@ class LearningSwitch(app_manager.RyuApp):
             dst = return_mac, # send it to the last hop
             ethertype = ether_frame_in.ethertype 
         )
-
 
         reply_pkt = packet.Packet()
         reply_pkt.add_protocol(ether_reply)
@@ -332,7 +311,6 @@ class LearningSwitch(app_manager.RyuApp):
             self.add_flow(datapath, 1, match, actions)
         else:
             # Flood the packet on all ports if the destination is unknown
-            self.logger.info(f"Switch is flooding")
             out_port = ofproto.OFPP_FLOOD
 
         # Create the packet-out message to forward the current packet
