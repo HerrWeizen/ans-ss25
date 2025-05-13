@@ -237,7 +237,7 @@ class LearningSwitch(app_manager.RyuApp):
             ether_frame.dst = dst_mac
 
             try:
-                out_pkt.serialize()
+                original_packet.serialize()
             except Exception as e:
                 self.logger.info(f"ERROR: While trying to serialize: {e}")
 
@@ -249,7 +249,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                             data=original_packet.data
                                                             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ROUTER: IP-Packet sent {ip_pkt_in.src} -> {ip_pkt_in.dst}")
+            self.logger.info(f"ROUTER: IP-Packet sent {ip_frame.src} -> {ip_frame.dst}")
             
         else:
 
