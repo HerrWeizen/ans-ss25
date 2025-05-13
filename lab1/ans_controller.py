@@ -224,10 +224,6 @@ class LearningSwitch(app_manager.RyuApp):
             self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
             return
 
-        if out_src_mac == None or out_src_ip == None:
-            self.logger.info(f"Not sure what but smth is f*")
-            return
-        
         dst_mac = self.arp_table[dst_ip]        
         
         
