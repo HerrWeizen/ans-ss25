@@ -142,7 +142,7 @@ class LearningSwitch(app_manager.RyuApp):
 
         if arp_frame_in.opcode != arp.ARP_REQUEST:
             self.logger.info(f"ROUTER RECEIVED: Received an ARP-Reply from {arp_frame_in.src_ip}")
-            self.arp_table[arp_frame_in.src_ip] = eth_frame_in.src
+            self.arp_table[arp_frame_in.src_ip] = ether_frame_in.src
             self.logger.info(f"ROUTER: Adjusted ARP-Table with [{arp_frame_in.src_ip} : {ether_frame_in.src}]")
         
         target_ip = arp_frame_in.dst_ip # der der gesucht wird?
@@ -173,7 +173,7 @@ class LearningSwitch(app_manager.RyuApp):
         ether_reply = ethernet.ethernet(
             src = requested_mac, # the router is currently sending
             dst = return_mac, # send it to the last hop
-            ethertype = eth_frame_in.ethertype 
+            ethertype = ether_frame_in.ethertype 
         )
 
 
