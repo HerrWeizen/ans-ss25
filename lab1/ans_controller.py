@@ -159,6 +159,8 @@ class LearningSwitch(app_manager.RyuApp):
         requested_mac =  self.port_to_own_mac[out_port]
         requested_ip = self.port_to_own_ip[out_port]
 
+        self.arp_table[source_ip] = source_mac
+        
         arp_reply = arp.arp(
             opcode = arp.ARP_REPLY,
             src_mac = requested_mac, # The MAC of router that was requested from host
@@ -223,7 +225,7 @@ class LearningSwitch(app_manager.RyuApp):
                         self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
                         return
             """
-            
+
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port_num
                 router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
