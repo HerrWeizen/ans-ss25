@@ -142,9 +142,7 @@ class LearningSwitch(app_manager.RyuApp):
             else:
                 self.logger.info(f"ROUTER: There are pending IP-Packets for the received information of host: {arp_frame_in.src_ip}")
                 for pending_packet in received_ip_buffer:
-
                     ip_frame = pending_packet.get_protocol(ipv4.ipv4)
-
                     src_ip = ip_frame.src
                     dst_ip = ip_frame.dst
 
@@ -157,46 +155,47 @@ class LearningSwitch(app_manager.RyuApp):
                             out_port = port_num
                             router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
                             router_outgoing_ip = self.port_to_own_ip[port_num]
-                            #self.logger.info(f"For IP {dst_ip} the port {out_port} was determined.")
                             break
                     try:
                         dst_mac = self.arp_table[dst_ip]        
                     except Exception as e:
                         self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
 
+                    new_ether = ethernet.ethernet(
+                        dst=dst_mac,
+                        src=router_outgoing_mac,
+                        ethertype=ether.ETH_TYPE_IP
+                    )
+
                     if dst_mac:
 
-                        out_packet = packet.Packet()
+                        new_ether = ethernet.ethernet(
+                        dst=dst_mac,
+                        src=router_outgoing_mac,
+                        ethertype=ether.ETH_TYPE_IP
+                    )
 
-                        ether_frame = ethernet.ethernet(
-                            src = router_outgoing_mac,
-                            dst = dst_mac,
-                            ethertype=ether.ETH_TYPE_IP
-                        )
+                    new_pkt = packet.Packet()
+                    new_pkt.add_protocol(new_ether)
+                    for p in pending_packet.protocols:
+                        if not isinstance(p, ethernet.ethernet):
+                            new_pkt.add_protocol(p)
 
-                        out_packet.add_protocol(ether_frame)
-                        out_packet.add_protocol(ip_frame
-                        )
+                    try:
+                        new_pkt.serialize()
+                    except Exception as e:
+                        self.logger.info(f"ERROR: While trying to serialize: {e}")
 
-                        if ip_frame.proto == inet.IPPROTO_ICMP:
-                            icmp_frame = pending_packet.get_protocol(icmp.icmp)
-                            out_packet.add_protocol(icmp_frame)
-
-                        try:
-                            out_packet.serialize()
-                        except Exception as e:
-                            self.logger.info(f"ERROR: While trying to serialize: {e}")
-
-                        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
-                        packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
-                                                                        buffer_id=datapath.ofproto.OFP_NO_BUFFER,
-                                                                        in_port=in_port,
-                                                                        actions=actions,
-                                                                        data=out_packet.data
-                                                                        )
-                        datapath.send_msg(packet_out)
-                        self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
-                        received_ip_buffer.remove(pending_packet)
+                    actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+                    packet_out = datapath.ofproto_parser.OFPPacketOut(datapath=datapath,
+                                                                    buffer_id=datapath.ofproto.OFP_NO_BUFFER,
+                                                                    in_port=in_port,
+                                                                    actions=actions,
+                                                                    data=new_pkt.data
+                                                                    )
+                    datapath.send_msg(packet_out)
+                    self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
+                    received_ip_buffer.remove(pending)
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
