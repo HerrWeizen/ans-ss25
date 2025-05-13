@@ -179,7 +179,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                                         buffer_id=datapath.ofproto.OFP_NO_BUFFER,
                                                                         in_port=in_port,
                                                                         actions=actions,
-                                                                        data=original_packet.data
+                                                                        data=pending_packet.data
                                                                         )
                         datapath.send_msg(packet_out)
                         self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {ether_frame.dst} (Port: {out_port})")
