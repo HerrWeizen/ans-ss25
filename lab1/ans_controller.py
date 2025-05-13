@@ -180,8 +180,8 @@ class LearningSwitch(app_manager.RyuApp):
 
                         if ip_frame.proto == inet.IPPROTO_ICMP:
                             icmp_frame = pending_packet.get_protocol(icmp.icmp)
-                            new_pkt.add_protocol(icmp_frame)
-                            
+                            out_packet.add_protocol(icmp_frame)
+
                         try:
                             out_packet.serialize()
                         except Exception as e:
