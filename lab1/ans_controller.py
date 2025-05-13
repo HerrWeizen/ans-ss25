@@ -58,6 +58,11 @@ class LearningSwitch(app_manager.RyuApp):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
+        # ARP to Controller
+        match = parser.OFPMatch(eth_type=0x0806)
+        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
+        self.add_flow(datapath, 1, match, actions)
+
         # Install default table-miss flow entry
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
@@ -112,11 +117,11 @@ class LearningSwitch(app_manager.RyuApp):
                 return
 
         else:
-            #self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
+            self.logger.info("Paket von Switch DPID %s empfangen. Sender ist: %s", dpid, eth_pkt.src)
             if arp_pkt:
-                if arp_pkt == arp.ARP_REQUEST:
+                if arp_pkt.opcode == arp.ARP_REQUEST:
                     self.logger.info(f"Switch {datapath.id} got an ARP Request for IP: {arp_pkt.dst_ip} from {arp_pkt.src_ip}")
-                elif arp_pkt == arp.ARP_REPLY:
+                elif arp_pkt.opcode == arp.ARP_REPLY:
                     self.logger.info(f"Switch {datapath.id} got an ARP Reply from IP: {arp_pkt.src_ip} for {arp_pkt.dst_ip}")
             self._handle_switch_packet(datapath, data, eth_pkt, in_port)
 
@@ -237,6 +242,7 @@ class LearningSwitch(app_manager.RyuApp):
             out_pkt.add_protocol(ip_pkt_out)
             try:
                 out_pkt.serialize()
+                self.logger.info(f"Serialized ARP packet: {out_pkt.data}")
             except:
                 self.logger.info(f"The Serialization is also in IP-Send fucked")
             actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
@@ -251,7 +257,7 @@ class LearningSwitch(app_manager.RyuApp):
         
         except KeyError:
 
-            self.logger.info(f"MAC address for {dst_ip} not in ARP table. Sending ARP request.")
+            self.logger.info(f"MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
             # Generiere ARP-Anfrage
             arp_request = arp.arp(
                 opcode=arp.ARP_REQUEST,
@@ -270,6 +276,7 @@ class LearningSwitch(app_manager.RyuApp):
             arp_request_pkt.add_protocol(arp_request)
             try:
                 arp_request_pkt.serialize()
+                self.logger.info(f"Serialized ARP packet: {arp_request_pkt.data}")
             except:
                 self.logger.info(f"The Serialization was fucked")
                 return
@@ -283,7 +290,7 @@ class LearningSwitch(app_manager.RyuApp):
                 data=arp_request_pkt.data
             )
             datapath.send_msg(packet_out)
-            self.logger.info(f"ARP request sent for {dst_ip} on port {out_port}")
+            self.logger.info(f"ARP-Request sent for {dst_ip} on port {out_port}")
 
     def _handle_switch_packet(self, datapath, data, eth_pkt, in_port):
         """
