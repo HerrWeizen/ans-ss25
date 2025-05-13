@@ -157,10 +157,10 @@ class LearningSwitch(app_manager.RyuApp):
                             router_outgoing_mac = self.port_to_own_mac[port_num] # The router will be the new source
                             router_outgoing_ip = self.port_to_own_ip[port_num]
                             break
-                    try:
-                        dst_mac = self.arp_table[dst_ip]        
-                    except Exception as e:
-                        self.logger.info(f"ROUTER BUFFER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
+
+                    dst_mac = self.arp_table[dst_ip]        
+                    #except Exception as e:
+                    #    self.logger.info(f"ROUTER BUFFER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
 
                     new_ether = ethernet.ethernet(
                         dst=dst_mac,
@@ -195,7 +195,7 @@ class LearningSwitch(app_manager.RyuApp):
                                                                     )
                     datapath.send_msg(packet_out)
                     self.logger.info(f"ROUTER SENT: IP-Packet sent {ip_frame.src} -> {ip_frame.dst} : {new_ether.dst} (Port: {out_port})")
-                received_ip_buffer.clear()
+                    received_ip_buffer.remove(pending_packet)
         else:
             self.logger.info(f"ROUTER RECEIVED: ARP-Request for IP {target_ip} from {arp_frame_in.src_ip}")
 
