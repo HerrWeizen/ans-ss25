@@ -87,7 +87,6 @@ class LearningSwitch(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        self.logger.info(f"----------------------------------------------------------------------")
         msg = ev.msg
 
         datapath = msg.datapath
@@ -109,6 +108,7 @@ class LearningSwitch(app_manager.RyuApp):
         is_router = dpid in self.router_dpids
 
         if is_router:
+            self.logger.info(f"----------------------------------------------------------------------")
             if ether_frame.ethertype == ether.ETH_TYPE_ARP:
                 self._handle_arp_for_router(datapath, original_packet, in_port)
 
