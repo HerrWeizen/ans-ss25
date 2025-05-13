@@ -223,10 +223,14 @@ class LearningSwitch(app_manager.RyuApp):
         if out_port == None:
             self.logger.info(f"The Destination Network of the IP-Packet is not known to the Router")
             return
+        
+        dst_mac = False
+        
+        try:
+            dst_mac = self.arp_table[dst_ip]        
+        except Exception as e:
+            self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
 
-        dst_mac = self.arp_table[dst_ip]        
-        
-        
         if dst_mac:
 
             ether_frame.src = router_outgoing_mac
@@ -249,7 +253,7 @@ class LearningSwitch(app_manager.RyuApp):
             
         else:
 
-            self.logger.info(f"ROUTER: MAC address for {dst_ip} not in ARP table. Sending ARP-Request.")
+            
             # Generiere ARP-Anfrage
             arp_request_payload = arp.arp(
                 opcode=arp.ARP_REQUEST,
