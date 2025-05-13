@@ -302,12 +302,13 @@ class LearningSwitch(app_manager.RyuApp):
         router_outgoing_ip = None
 
         for port_num, ip in self.port_to_own_ip.items(): 
-            if src_ip.split(".")[0:3] == ip.split(".")[0:3]:
-                if ip_frame.proto == inet.IPPROTO_ICMP:
-                    icmp_frame = original_packet.get_protocol(icmp.icmp)
-                    if icmp_frame.type == icmp.ICMP_ECHO_REQUEST or icmp_frame.type == icmp.ICMP_ECHO_REPLY:
+
+            if src_ip.split(".")[0:3] == self.port_to_own_ip[3](".")[0:3] or dst_ip.split(".")[0:3] == self.port_to_own_ip[3](".")[0:3]: # Is paket from or to ext
+                if ip_frame.proto == inet.IPPROTO_ICMP: # Is it a ICMP? If so ...
+                    icmp_frame = original_packet.get_protocol(icmp.icmp) # Get the ICMP layer
+                    if icmp_frame.type == icmp.ICMP_ECHO_REQUEST or icmp_frame.type == icmp.ICMP_ECHO_REPLY: # If Ping request or answer do ...
                         self.logger.info(f"There was a ping try to or from ext. This packet is dropped")
-                        return
+                        return # Drop
 
             if dst_ip.split(".")[0:3] == ip.split(".")[0:3]:
                 out_port = port_num
