@@ -62,90 +62,51 @@ class Node:
 class Fattree:
 
 	def __init__(self, num_ports):
-		self.servers = [] # Contains tuples of (node, IP)
-		self.switches = { # Contains tuples of (node, IP)
-			"edge": [],
-			"aggregation": [],
-			"core": [],
-			"all": []
-		}
-		self.edges = []
+		self.servers = []
+		self.switches = []
+		self.core_switches = []
+		self.aggregation_switches = [[] for _ in range(num_ports)]
+		self.edge_switches = [[] for _ in range(num_ports)]
 		self.generate(num_ports)
 
-	def generate(self, k):
-
-		if k % 2 != 0:
-			raise ValueError("Number of ports (k) must be even.")
+	def generate(self, num_ports):
+	
+		#switches
+		#core k/2 * k/2
+		for i in range(num_ports//2):
+		    for j in range(num_ports//2):
+		        node = Node(id=f"cs{i}{j}", type="core")
+		        self.core_switches.append(node)
+		        self.switches.append(node)
 		
-		for j in range(1, k // 2 + 1):
-			for i in range(1, k // 2 + 1):
-
-				name = f"Core{j}{i}"
-				IP = f"10.{k}.{j}.{i}"
-				
-				switch = Node(name, "switch")
-				self.switches["core"].append((switch, IP))
-				self.switches["all"].append((switch, IP))
-		
-		# For each Pod
-		for pod in range(k):
-			
-			# Used to connect Edges with Servers and Edges with aggregation
-			podSwitches = {"edge": [], "aggregation": []}
-			podServers = []
-
-			# Higher half of Switches in Pod will be aggregation
-			for agg in range(k//2):
-				
-				# Generate Switch
-				name = f"AggSw{agg}P{pod}"
-				IP = f"10.{pod}.{agg + k // 2}.1"
-				switch = Node(name, "switch")
-
-				# Fill Information
-				podSwitches["aggregation"].append(switch)
-				self.switches["aggregation"].append((switch, IP))
-				self.switches["all"].append((switch, IP))
-
-			# Lower half of Switch in Pod will be edges
-			for edge in range(k // 2):
-
-				# Generate Switch
-				name = f"EdSw{edge}P{pod}"
-				IP = f"10.{pod}.{edge}.1"
-				switch = Node(name, "switch")
-
-				# Fill Switch Information
-				podSwitches["edge"].append(switch)
-				self.switches["edge"].append((switch, IP))
-				self.switches["all"].append((switch, IP))
-
-				# Create half of the Ports as Hosts
-				for ser in range(k // 2):
-
-					name = f"Ser{ser+2}P{pod}Ed{edge}"
-					IP = f"10.{pod}.{edge}.{ser+2}"
-					server = Node(name, "server")
-
-					# Fill Server Information
-					podServers.append(server)
-					self.servers.append((server, IP))
-					currentEdge = server.add_edge(switch) # Already creates Edges for both nodes
-
-					# Fill Edge information
-					self.edges.append(currentEdge)
-				
-			# Create all edges between Edge and Aggregation inside a Pod
-			for edgeSwitch in podSwitches["edge"]:
-				for aggregationSwitch in podSwitches["aggregation"]:
-					currentEdge = edgeSwitch.add_edge(aggregationSwitch)
-					self.edges.append(currentEdge)
-
-			# Connect all edges between Aggregation and Core
-			for aggIndex, aggregationSwitch in enumerate(podSwitches["aggregation"]):
-				for coreIndex in range(k // 2):
-					coreSwitchIndex = coreIndex * (k // 2) + aggIndex
-					coreSwitch = self.switches["core"][coreSwitchIndex][0]
-					currentEdge = aggregationSwitch.add_edge(coreSwitch)
-					self.edges.append(currentEdge)
-								
+		#switches
+		#aggregation and edge for k pods. k/2 each for each pod
+		for pod in range(num_ports):
+		    aggs = [Node(id=f"as{pod}{i}", type="aggregation") for i in range(num_ports//2)]
+		    edges = [Node(id=f"es{pod}{i}", type="edge") for i in range(num_ports//2)]
+		    
+		    self.aggregation_switches[pod] = aggs
+		    self.edge_switches[pod] = edges
+		    self.switches.extend(aggs + edges)
+		  
+		#add hosts and connect them immediately
+		#connect k/2 hosts to each edge. 
+		for pod in range(num_ports):
+		    for e_idx, edge in enumerate(self.edge_switches[pod]):
+		        for h_idx in range(num_ports//2):
+		            host = Node(id=f"h{pod}{e_idx}{h_idx}", type="host")
+		            self.servers.append(host)
+		            edge.add_edge(host)
+		    
+		#connect aggregation and edge switches with each other inside pod
+		for pod in range(num_ports):
+		    for edge in self.edge_switches[pod]:
+		        for agg in self.aggregation_switches[pod]:
+		            edge.add_edge(agg)
+		            
+		#connect each aggregation in a pod to k/2 different cores
+		for pod in range(num_ports):
+		    for agg_idx, agg in enumerate(self.aggregation_switches[pod]):
+		        for cluster in range(num_ports//2):
+		            core_idx = agg_idx * (num_ports//2) + cluster
+		            agg.add_edge(self.core_switches[core_idx])
