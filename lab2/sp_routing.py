@@ -112,6 +112,7 @@ class SPRouter(app_manager.RyuApp):
 
         links = get_link(self, None)
         for link in links:
+            print(link)
             src_dpid = link.src.dpid
             dst_dpid = link.dst.dpid
             src_port = link.src.portions
