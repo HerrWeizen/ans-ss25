@@ -36,7 +36,7 @@ from mininet.topo import Topo
 from mininet.util import waitListening, custom
 
 from topo import Fattree
-
+import time
 
 class FattreeNet(Topo):
     """
@@ -50,11 +50,13 @@ class FattreeNet(Topo):
 
         # switch = (Node, IP)
         for switch in ft_topo.switches["all"]:
+            time.sleep(100)
             self.addSwitch(switch[0].id, ip=switch[1])
             self.nodeMap[switch[0]] = switch[0].id
 
         # server = (Node, IP)
         for server in ft_topo.servers:
+            time.sleep(100)
             self.addHost(server[0].id, ip=server[1])
             self.nodeMap[server[0]] = server[0].id
 
