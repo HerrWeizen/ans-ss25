@@ -28,7 +28,7 @@ from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
 from ryu.lib.mac import haddr_to_bin
-from ryu.lib.packet import packet
+from ryu.lib.packet import packet, ethernet
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import arp
 
