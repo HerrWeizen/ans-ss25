@@ -36,7 +36,7 @@ from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
 from ryu.app.wsgi import ControllerBase
 
-import topo
+#import topo
 import heapq
 import json
 

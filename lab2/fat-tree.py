@@ -50,13 +50,11 @@ class FattreeNet(Topo):
 
         # switch = (Node, IP)
         for switch in ft_topo.switches["all"]:
-            time.sleep(100)
             self.addSwitch(switch[0].id, ip=switch[1])
             self.nodeMap[switch[0]] = switch[0].id
 
         # server = (Node, IP)
         for server in ft_topo.servers:
-            time.sleep(100)
             self.addHost(server[0].id, ip=server[1])
             self.nodeMap[server[0]] = server[0].id
 
@@ -89,7 +87,9 @@ def run(graph_topo):
     info('*** Stopping network ***\n')
     net.stop()
 
-
-if __name__ == '__main__':
+def main():
     ft_topo = Fattree(4)
     run(ft_topo)
+    
+if __name__ == '__main__':
+    main()
