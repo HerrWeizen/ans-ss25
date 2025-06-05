@@ -47,7 +47,7 @@ class FattreeNet(Topo):
 
         Topo.__init__(self)
         self.nodeMap = {}
-
+        time.sleep(10)
         # switch = (Node, IP)
         for switch in ft_topo.switches["all"]:
             self.addSwitch(switch[0].id, ip=switch[1])
