@@ -36,6 +36,7 @@ from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
 from ryu.app.wsgi import ControllerBase
 
+import time
 import topo
 import heapq
 import json
@@ -49,7 +50,6 @@ class SPRouter(app_manager.RyuApp):
         
         # Initialize the topology with #ports=4
         self.topo_net = topo.Fattree(4)
-
         self.network = {}
         self.stored = False
         # MAC -> (dpid, port)
@@ -102,7 +102,8 @@ class SPRouter(app_manager.RyuApp):
     # Topology discovery
     @set_ev_cls(event.EventSwitchEnter)
     def get_topology_data(self, ev):
-
+        
+        time.sleep(5)
         # Switches and links in the network
         switches = get_switch(self, None)
         self.logger.info(f"Switches: {len(switches)} - {switches}")
@@ -116,7 +117,7 @@ class SPRouter(app_manager.RyuApp):
         for link in links:
             src_dpid = link.src.dpid
             dst_dpid = link.dst.dpid
-            src_port = link.src.portions
+            src_port = link.src
 
             if src_dpid in self.network and dst_dpid in self.network:
                 self.network[src_dpid][dst_dpid] = {"port": src_port}
@@ -156,6 +157,6 @@ class SPRouter(app_manager.RyuApp):
 
         if not self.stored:
             with open("network.txt", "w") as f:
-                json.dump(self.network, f, indent=4)
+                f.write(str(self.network))
             self.stored = True
         # TODO: handle new packets at the controller
