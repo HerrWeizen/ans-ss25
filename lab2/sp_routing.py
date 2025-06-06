@@ -36,7 +36,7 @@ from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
 from ryu.app.wsgi import ControllerBase
 
-#import topo
+import topo
 import heapq
 import json
 
@@ -48,7 +48,7 @@ class SPRouter(app_manager.RyuApp):
         super(SPRouter, self).__init__(*args, **kwargs)
         
         # Initialize the topology with #ports=4
-        #self.topo_net = topo.Fattree(4)
+        self.topo_net = topo.Fattree(4)
 
         self.network = {}
         self.stored = False
@@ -105,14 +105,15 @@ class SPRouter(app_manager.RyuApp):
 
         # Switches and links in the network
         switches = get_switch(self, None)
+        self.logger.info(f"Switches: {len(switches)} - {switches}")
         for switch in switches:
             dpid = switch.dp.id
             if dpid not in self.network:
                 self.network[dpid] = {}
 
         links = get_link(self, None)
+        self.logger.info(f"Links: {len(links)} - {links}")
         for link in links:
-            print(link)
             src_dpid = link.src.dpid
             dst_dpid = link.dst.dpid
             src_port = link.src.portions
