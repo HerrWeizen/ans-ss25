@@ -1,0 +1,43 @@
+Nodes:
+20: <ryu.controller.controller.Datapath object at 0x7f771e57a2b0>
+5: <ryu.controller.controller.Datapath object at 0x7f771e574d60>
+2: <ryu.controller.controller.Datapath object at 0x7f771e55bac0>
+12: <ryu.controller.controller.Datapath object at 0x7f771e55b6d0>
+18: <ryu.controller.controller.Datapath object at 0x7f771e55b7f0>
+13: <ryu.controller.controller.Datapath object at 0x7f771e56bbb0>
+10: <ryu.controller.controller.Datapath object at 0x7f771e57a160>
+15: <ryu.controller.controller.Datapath object at 0x7f771e505160>
+7: <ryu.controller.controller.Datapath object at 0x7f771e57afd0>
+9: <ryu.controller.controller.Datapath object at 0x7f771e57a550>
+16: <ryu.controller.controller.Datapath object at 0x7f771e57a7f0>
+4: <ryu.controller.controller.Datapath object at 0x7f771e55b970>
+1: <ryu.controller.controller.Datapath object at 0x7f771e5052b0>
+14: <ryu.controller.controller.Datapath object at 0x7f771e57a6a0>
+17: <ryu.controller.controller.Datapath object at 0x7f771e57a400>
+8: <ryu.controller.controller.Datapath object at 0x7f771e57ae80>
+11: <ryu.controller.controller.Datapath object at 0x7f771e57a940>
+3: <ryu.controller.controller.Datapath object at 0x7f771e57abe0>
+19: <ryu.controller.controller.Datapath object at 0x7f771e57ad30>
+6: <ryu.controller.controller.Datapath object at 0x7f771e57aa90>
+
+Links:
+10: {11: 1, 4: 4, 2: 3, 12: 2}
+18: {2: 3, 20: 2, 4: 4, 19: 1}
+2: {14: 3, 6: 1, 10: 2, 18: 4}
+5: {8: 2, 3: 4, 7: 1, 1: 3}
+13: {3: 4, 1: 3, 16: 2, 15: 1}
+12: {9: 3, 10: 4}
+20: {18: 4, 17: 3}
+16: {14: 4, 13: 3}
+4: {14: 3, 10: 2, 18: 4, 6: 1}
+1: {9: 2, 13: 3, 17: 4, 5: 1}
+14: {15: 1, 16: 2, 2: 3, 4: 4}
+9: {3: 4, 12: 2, 1: 3, 11: 1}
+17: {3: 4, 1: 3, 20: 2, 19: 1}
+6: {4: 4, 7: 1, 8: 2, 2: 3}
+7: {6: 4, 5: 3}
+3: {5: 1, 13: 3, 17: 4, 9: 2}
+15: {13: 3, 14: 4}
+19: {18: 4, 17: 3}
+8: {6: 4, 5: 3}
+11: {9: 3, 10: 4}
