@@ -67,307 +67,6 @@ class SPRouter(app_manager.RyuApp):
         else:
             return False
 
-    def arp_or_ipv4(self, msg):
-        pkt = packet.Packet(msg.data)
-        
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        if ether_frame:
-            pass
-            #self.logger.info(f"Ethernet Frame found. Ethertype: {hex(ether_frame.ethertype)}")
-        else:
-            self.logger.warning("No Ethernet frame found in packet!")
-            return "UNKNOWN" # No ethernet, can't be ARP or IPV4
-
-        arp_frame = pkt.get_protocol(arp.arp)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        if arp_frame:
-            #self.logger.info("Packet identified as ARP.")
-            return "ARP"
-        elif ipv4_frame:
-            self.logger.info("Packet identified as IPV4.")
-            return "IPV4"
-        else:
-            self.logger.info(f"Packet identified as UNKNOWN (neither ARP nor IPV4 after Ethernet). Protocols in packet: {pkt.protocols}")
-            return "UNKNOWN"
-
-    def detect_host(self, msg):
-        dpid = msg.datapath.id
-        in_port = msg.match["in_port"]
-        
-        switch_ports = self.switches[dpid].values()
-        return in_port not in switch_ports 
-    
-    def check_hosts(self,msg):
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        if arp_frame:
-            src_ip = arp_frame.src_ip
-            return src_ip in self.hosts
-
-        elif ipv4_frame:
-            src_ip = ipv4_frame.src
-            return src_ip in self.hosts
-
-        else:
-            return False
-
-    def add_host(self, msg):
-        dpid = msg.datapath.id
-        in_port = msg.match["in_port"]
-        
-        # I hope this will just execute if it's an ARP message
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        if arp_frame:
-            host_ip = arp_frame.src_ip
-        elif ipv4_frame:
-            host_ip = ipv4_frame.src
-        else:
-            return
-        
-        self.hosts[host_ip] = (dpid, in_port)
-        self.logger.info(f"Added Host {host_ip} -> ({dpid}, {in_port})")
-
-    def request_or_reply(self, msg):
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-        
-        if arp_frame.opcode == arp.ARP_REQUEST:
-            return "REQUEST"
-        elif arp_frame.opcode == arp.ARP_REPLY:
-            return "REPLY"
-
-    def check_src_arp_table(self,msg):
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        if arp_frame:
-            src_ip = arp_frame.src_ip
-            return src_ip in self.arp_table
-
-        elif ipv4_frame:
-            src_ip = ipv4_frame.src
-            return src_ip in self.arp_table
-
-    def check_dst_arp_table(self,msg):
-        pkt = packet.Packet(msg.data)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        if ipv4_frame:
-            dst_ip = ipv4_frame.dst
-            return dst_ip in self.arp_table
-
-    def update_arp_table(self, msg):
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        if arp_frame:
-            src_ip = arp_frame.src_ip
-            src_mac = arp_frame.src_mac
-            self.arp_table[src_ip] = src_mac
-            self.logger.info(f"Updated ARP-Table via ARP: {src_ip} -> {src_mac}")
-        if ipv4_frame:
-            src_ip = ipv4_frame.src
-            src_mac = ether_frame.src
-            self.arp_table[src_ip] = src_mac
-            self.logger.info(f"Updated ARP-Table via IPV4: {src_ip} -> {src_mac}")
-
-    def check_arp_messages_of_switch(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-        
-        arp_type = ""
-        if arp_frame.opcode == arp.ARP_REQUEST:
-            arp_type = "arp_request"
-        elif arp_frame.opcode == arp.ARP_REPLY:
-            arp_type = "arp_reply"
-        else:
-            self.logger.error(f"Received unkown ARP Packet Type!")
-            return None
-
-        moin = (arp_type, arp_frame.src_ip, arp_frame.dst_ip) in self.arp_messages[dpid][arp_type]
-
-        if moin:
-            #self.logger.info(f"{arp_type} on Switch {dpid} from {arp_frame.src_ip} to {arp_frame.dst_ip} ALREADY PRESENT")
-            return True
-        else:
-            return False 
-
-    def add_arp_message_to_switch(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-
-        arp_type = ""
-        if arp_frame.opcode == arp.ARP_REQUEST:
-            arp_type = "arp_request"
-        elif arp_frame.opcode == arp.ARP_REPLY:
-            arp_type = "arp_reply"
-        else:
-            self.logger.error(f"Received unkown ARP Packet Type!")
-            return None
-        
-        self.arp_messages[dpid][arp_type].add((arp_type, arp_frame.src_ip, arp_frame.dst_ip))
-        self.logger.info(f"On Switch {dpid} {arp_type} added: {arp_type, arp_frame.src_ip, arp_frame.dst_ip}")
-        return True
-
-    def add_to_ipv4_buffer(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        src_ip = ipv4_frame.src
-        dst_ip = ipv4_frame.dst
-
-        self.logger.info(f"Added to IPV4-BUFFER: ({src_ip}, {dst_ip}) -> ({msg}, {dpid})")
-        self.ipv4_buffer[(src_ip, dst_ip)] = (msg, dpid)
-    
-    def check_message_in_ipv4_buffer(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-
-        src_ip = arp_frame.src_ip
-        dst_ip = arp_frame.dst_ip
-
-        return (dst_ip, src_ip) in self.ipv4_buffer
-
-    def get_message_from_ipv4_buffer(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        arp_frame = pkt.get_protocol(arp.arp)
-
-        src_ip = arp_frame.src_ip
-        dst_ip = arp_frame.dst_ip
-
-        if (dst_ip, src_ip) in self.ipv4_buffer:
-            self.logger.info(f"Retrieve from IPV4-BUFFER: ({dst_ip}, {src_ip}) -> {self.ipv4_buffer((dst_ip, src_ip))}")
-            return self.ipv4_buffer[(dst_ip, src_ip)]
-        else:
-            self.logger.info(f"There is not a stored IPV4 Packet.")
-            return None
-
-    def send_arp_request_based_on_ipv4(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        src_ip = ipv4_frame.src
-        dst_ip = ipv4_frame.dst
-
-        arp_request = packet.Packet()
-        arp_request.add_protocol(ethernet.ethernet(ethertype=ether_types.ETH_TYPE_ARP, src=ether_frame.src, dst='ff:ff:ff:ff:ff:ff'))
-        arp_request.add_protocol(arp.arp(opcode=arp.ARP_REQUEST, src_mac=ether_frame.src, src_ip=src_ip, dst_mac='00:00:00:00:00:00', dst_ip=dst_ip))
-        arp_request.serialize()
-        
-        actions = [msg.datapath.ofproto_parser.OFPActionOutput(msg.datapath.ofproto.OFPP_FLOOD)]
-        out = msg.datapath.ofproto_parser.OFPPacketOut(datapath=msg.datapath, buffer_id=msg.datapath.ofproto.OFP_NO_BUFFER, in_port=msg.datapath.ofproto.OFPP_CONTROLLER, actions=actions, data=arp_request.data)
-        
-        self.logger.info(f"Start ARP Request flooding from Switch {dpid} for {dst_ip}")
-        msg.datapath.send_msg(out)
-
-    def send_arp_request_based_on_arp(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        arp_frame = pkt.get_protocol(arp.arp)
-
-        src_ip = arp_frame.src_ip
-        dst_ip = arp_frame.dst_ip
-
-        arp_request = packet.Packet()
-        arp_request.add_protocol(ethernet.ethernet(ethertype=ether_types.ETH_TYPE_ARP, src=ether_frame.src, dst='ff:ff:ff:ff:ff:ff'))
-        arp_request.add_protocol(arp.arp(opcode=arp.ARP_REQUEST, src_mac=ether_frame.src, src_ip=src_ip, dst_mac='00:00:00:00:00:00', dst_ip=dst_ip))
-        arp_request.serialize()
-        
-        actions = [msg.datapath.ofproto_parser.OFPActionOutput(msg.datapath.ofproto.OFPP_FLOOD)]
-        out = msg.datapath.ofproto_parser.OFPPacketOut(datapath=msg.datapath, buffer_id=msg.datapath.ofproto.OFP_NO_BUFFER, in_port=msg.datapath.ofproto.OFPP_CONTROLLER, actions=actions, data=arp_request.data)
-        
-        self.logger.info(f"Send ARP Request flooding from Switch {dpid} for {dst_ip}")
-        msg.datapath.send_msg(out)
-
-    def add_message_to_ipv4_buffer(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        src_ip = ipv4_frame.src
-        dst_ip = ipv4_frame.dst
-        self.ipv4_buffer[(src_ip, dst_ip)] = (msg, dpid)
-
-    def send_instant_arp_reply_on_arp_request(self, msg):
-        dpid = msg.datapath.id
-        pkt = packet.Packet(msg.data)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        arp_frame = pkt.get_protocol(arp.arp)  
-        in_port = msg.match["in_port"]
-
-        target_mac = self.arp_table[arp_frame.dst_ip]
-        arp_reply = packet.Packet()
-        arp_reply.add_protocol(ethernet.ethernet(ethertype=ether_frame.ethertype, dst=ether_frame.src, src=target_mac))
-        arp_reply.add_protocol(arp.arp(opcode=arp.ARP_REPLY, src_mac=target_mac, src_ip=arp_frame.dst_ip, dst_mac=arp_frame.src_mac, dst_ip=arp_frame.src_ip))
-        arp_reply.serialize()
-
-        actions = [msg.datapath.ofproto_parser.OFPActionOutput(in_port)]
-        out = msg.datapath.ofproto_parser.OFPPacketOut(datapath=msg.datapath, buffer_id=msg.datapath.ofproto.OFP_NO_BUFFER, in_port=msg.datapath.ofproto.OFPP_CONTROLLER, actions=actions, data=arp_reply.data)
-
-        msg.datapath.send_msg(out)
-
-    def send_ipv4(self, msg, port_to_next_hop):
-        dpid = msg.datapath.id
-        in_port = msg.match["in_port"]
-
-        pkt = packet.Packet(msg.data)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-        dst_ip = ipv4_frame.dst
-        dst_mac = self.arp_table[dst_ip]
-
-        dst_dpid, dst_port = self.hosts[dst_ip]
-
-        new_pkt = packet.Packet()
-        new_pkt.add_protocol(ethernet.ethernet(ethertype=ether_frame.ethertype, src=ether_frame.src, dst=dst_mac))
-        new_pkt.add_protocol(ipv4_frame)
-        new_pkt.serialize()
-
-        actions = [msg.datapath.ofproto_parser.OFPActionOutput(port_to_next_hop)]
-        out = msg.datapath.ofproto_parser.OFPPacketOut(datapath=msg.datapath, buffer_id=msg.datapath.ofproto.OFP_NO_BUFFER, in_port=msg.datapath.ofproto.OFPP_CONTROLLER, actions=actions, data=new_pkt.data)
-
-        msg.datapath.send_msg(out)
-
-    def send_arp_reply(self, msg, port_to_next_hop):
-        dpid = msg.datapath.id
-        in_port = msg.match["in_port"]
-
-        pkt = packet.Packet(msg.data)
-        ether_frame = pkt.get_protocol(ethernet.ethernet)
-        arp_frame = pkt.get_protocol(arp.arp)
-
-        dst_ip = arp_frame.dst_ip
-        dst_mac = self.arp_table[dst_ip]
-
-        dst_dpid, dst_port = self.hosts[dst_ip]
-
-        new_pkt = packet.Packet()
-        new_pkt.add_protocol(ethernet.ethernet(ethertype=ether_frame.ethertype, src=ether_frame.src, dst=dst_mac))
-        new_pkt.add_protocol(arp.arp(opcode=arp.ARP_REPLY, src_mac=ether_frame.src, src_ip=arp_frame.src_ip, dst_mac=dst_mac, dst_ip=arp_frame.dst_ip))
-        new_pkt.serialize()
-
-        actions = [msg.datapath.ofproto_parser.OFPActionOutput(port_to_next_hop)]
-        out = msg.datapath.ofproto_parser.OFPPacketOut(datapath=msg.datapath, buffer_id=msg.datapath.ofproto.OFP_NO_BUFFER, in_port=msg.datapath.ofproto.OFPP_CONTROLLER, actions=actions, data=new_pkt.data)
-
-        msg.datapath.send_msg(out)
-
     def dijkstra(self, start_node, end_node):
         self.logger.info(f"Dijkstra: Suche Pfad von {start_node} zu {end_node}")
         if start_node not in self.switches or end_node not in self.switches:
@@ -409,7 +108,10 @@ class SPRouter(app_manager.RyuApp):
         for i in range(len(path) - 1):
             dp = self.datapaths[path[i]]
             out_port = self.switches[path[i]][path[i+1]]
-            match = dp.ofproto_parser.OFPMatch(eth_dst=dst_mac, ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
+            match = dp.ofproto_parser.OFPMatch(ipv4_src=src_ip, ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
+            actions = [dp.ofproto_parser.OFPActionOutput(out_port)]
+            self.add_flow(dp, 1, match, actions)
+            match = dp.ofproto_parser.OFPMatch(arp_src_ip=src_ip, arp_dst_ip=dst_ip, eth_type=ether_types.ETH_TYPE_ARP)
             actions = [dp.ofproto_parser.OFPActionOutput(out_port)]
             self.add_flow(dp, 1, match, actions)
 
@@ -419,9 +121,13 @@ class SPRouter(app_manager.RyuApp):
         dst_host_port = self.hosts[dst_ip][1]
         src_host_port = self.hosts[src_ip][1]
 
-        match = last_dp.ofproto_parser.OFPMatch(eth_dst=dst_mac, ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
+        match = last_dp.ofproto_parser.OFPMatch(ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
         actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
         self.add_flow(first_dp, 1, match, actions)
+        match = dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, eth_type=ether_types.ETH_TYPE_ARP)
+        actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
+        self.add_flow(dp, 1, match, actions)
+
 
 
     @set_ev_cls(event.EventSwitchEnter, event.EventLinkAdd)
@@ -443,10 +149,30 @@ class SPRouter(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
         msg = ev.msg
+        datapath = msg.datapath
+        dpid = datapath.id
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+
+        pkt = packet.Packet(msg.data)
+        ether_frame = pkt.get_protocols(ethernet.ethernet)
+        ip_frame = pkt.get_protocol(ipv4.ipv4)
+        arp_frame = pkt.get_protocol(arp.arp)
+        in_port = msg.match['in_port']
+        dst_mac = ether_frame.dst
+        src_mac = ether_frame.src
 
         if self.drop_unwanted_messages(msg):
             return
 
+        if ip_frame:
+            src_ip = ip_frame.src
+            dst_ip = ip_frame.dst
+        elif arp_frame:
+            src_ip = ip_frame.src
+            dst_ip = ip_frame.dst
+
+        
         # Check if the msg comes from a host, no matter the message
         if self.detect_host(msg):
             if not self.check_hosts(msg):
@@ -455,6 +181,7 @@ class SPRouter(app_manager.RyuApp):
         
         message_type = self.arp_or_ipv4(msg)
 
+        print(message_type)
         if message_type == "UNKNOWN":
             self.logger.info("We got an Unknown ARP or IPV4 message.")
             return
@@ -468,6 +195,7 @@ class SPRouter(app_manager.RyuApp):
 
             arp_type = self.request_or_reply(msg)
 
+            print(arp_type)
             if arp_type == "REQUEST":
                 #self.logger.info("We got an ARP Request.")
 

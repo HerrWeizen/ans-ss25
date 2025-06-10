@@ -62,8 +62,7 @@ class FattreeNet(Topo):
 
         # server = (Node, IP)
         for server in ft_topo.servers:
-            dpid = self.create_dpid(i)
-            self.addHost(server[0].id, ip=server[1], dpid=dpid)
+            self.addHost(server[0].id, ip=server[1])
             self.nodeMap[server[0]] = server[0].id
             self.mynodes.add(server)
             i+=1
@@ -72,6 +71,7 @@ class FattreeNet(Topo):
             node1 = self.nodeMap[edge.lnode]
             node2 = self.nodeMap[edge.rnode]
             self.addLink(node1, node2, cls=TCLink, bw=15, delay="5ms")
+            print(f"AddedLink {node1} -> {node2}")
             self.myedges.add(edge)
 
     def create_dpid(self, n):
