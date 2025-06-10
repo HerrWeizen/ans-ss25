@@ -414,7 +414,7 @@ class SPRouter(app_manager.RyuApp):
         match = last_dp.ofproto_parser.OFPMatch(ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
         actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
         self.add_flow(last_dp, 1, match, actions)
-        match = dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, eth_type=ether_types.ETH_TYPE_ARP)
+        match = last_dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, eth_type=ether_types.ETH_TYPE_ARP)
         actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
         self.add_flow(last_dp, 1, match, actions)
 
@@ -491,8 +491,12 @@ class SPRouter(app_manager.RyuApp):
                     path = self.dijkstra(src_dpid, dst_dpid)
                     self.install_path(path, dst_ip, src_ip)
                     self.install_path(path[::-1], src_ip, dst_ip)
-                    next_hop = path[1]
-                    port_to_next_hop = self.switches[src_dpid][next_hop]
+                    if len(path) > 1:
+                        next_hop = path[1]
+                        port_to_next_hop = self.switches[src_dpid][next_hop]
+                    else: 
+                        port_to_next_hop = self.hosts[dst_ip][1]
+
                     self.send_ipv4(msg, port_to_next_hop)
                 
                 # Use dijkstra for reply
@@ -508,9 +512,13 @@ class SPRouter(app_manager.RyuApp):
                 path = self.dijkstra(src_dpid, dst_dpid)
                 self.install_path(path, dst_ip, src_ip)
                 self.install_path(path[::-1], src_ip, dst_ip)
-                next_hop = path[1]
-                port_to_next_hop = self.switches[src_dpid][next_hop]
-                self.send_arp_reply(msg, next_hop)
+                if len(path) > 1:
+                    next_hop = path[1]
+                    port_to_next_hop = self.switches[src_dpid][next_hop]
+                else: 
+                    port_to_next_hop = self.hosts[dst_ip][1]
+
+                self.send_arp_reply(msg, port_to_next_hop)
 
         elif message_type == "IPV4":
             #self.logger.info(f"HI! We got a IPV4")
@@ -527,9 +535,13 @@ class SPRouter(app_manager.RyuApp):
                 path = self.dijkstra(src_dpid, dst_dpid)
                 self.install_path(path, dst_ip, src_ip)
                 self.install_path(path[::-1], src_ip, dst_ip)
-                next_hop = path[1]
-                port_to_next_hop = self.switches[src_dpid][next_hop]
-                self.send_ipv4(msg, next_hop) 
+                if len(path) > 1:
+                    next_hop = path[1]
+                    port_to_next_hop = self.switches[src_dpid][next_hop]
+                else: 
+                    port_to_next_hop = self.hosts[dst_ip][1]
+
+                self.send_ipv4(msg, port_to_next_hop) 
                 return
 
             else:
