@@ -52,7 +52,7 @@ class SPRouter(app_manager.RyuApp):
         # IP -> MAC
         self.arp_table = {}
 
-        # Store all ARP messages for each dpid: {DPID -> {arp_reply: set(tuple), arp_request: set((tuple))}}
+        # Store all ARP messages for each dpid: {DPID -> {arp_reply: set((tuple)), arp_request: set((tuple))}}
         self.arp_messages = {}
 
         # Store {src_ip, dst_ip: -> (MSG, DPID)}
@@ -186,10 +186,10 @@ class SPRouter(app_manager.RyuApp):
             self.logger.error(f"Received unkown ARP Packet Type!")
             return None
 
-        moin = (arp_type, arp_frame.src_ip, arp_frame.dst_ip) in self.arp_messages[dpid][arp_type]
+        moin = (arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac) in self.arp_messages[dpid][arp_type]
 
         if moin:
-            #self.logger.info(f"{arp_type} on Switch {dpid} from {arp_frame.src_ip} to {arp_frame.dst_ip} ALREADY PRESENT")
+            self.logger.info(f"{arp_type} on Switch {dpid} from {arp_frame.src_ip} to {arp_frame.dst_ip} ALREADY PRESENT")
             return True
         else:
             return False 
@@ -208,8 +208,8 @@ class SPRouter(app_manager.RyuApp):
             self.logger.error(f"Received unkown ARP Packet Type!")
             return None
         
-        self.arp_messages[dpid][arp_type].add((arp_type, arp_frame.src_ip, arp_frame.dst_ip))
-        self.logger.info(f"On Switch {dpid} {arp_type} added: {arp_type, arp_frame.src_ip, arp_frame.dst_ip}")
+        self.arp_messages[dpid][arp_type].add((arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac))
+        self.logger.info(f"On Switch {dpid} {arp_type} added: {arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac}")
         return True
 
     def add_to_ipv4_buffer(self, msg):
@@ -401,22 +401,22 @@ class SPRouter(app_manager.RyuApp):
         for i in range(len(path) - 1):
             dp = self.datapaths[path[i]]
             out_port = self.switches[path[i]][path[i+1]]
-            match = dp.ofproto_parser.OFPMatch(ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
+            match = dp.ofproto_parser.OFPMatch(ipv4_dst=dst_ip, ipv4_src=src_ip, eth_type=ether_types.ETH_TYPE_IP)
             actions = [dp.ofproto_parser.OFPActionOutput(out_port)]
-            self.add_flow(dp, 1, match, actions)
-            match = dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, eth_type=ether_types.ETH_TYPE_ARP)
+            self.add_flow(dp, 10, match, actions)
+            match = dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, arp_spa=src_ip, eth_type=ether_types.ETH_TYPE_ARP)
             actions = [dp.ofproto_parser.OFPActionOutput(out_port)]
-            self.add_flow(dp, 1, match, actions)
+            self.add_flow(dp, 10, match, actions)
             
 
         last_dp = self.datapaths[path[-1]]
         dst_host_port = self.hosts[dst_ip][1]
-        match = last_dp.ofproto_parser.OFPMatch(ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
+        match = last_dp.ofproto_parser.OFPMatch(ipv4_dst=dst_ip, ipv4_src=src_ip, eth_type=ether_types.ETH_TYPE_IP)
         actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
-        self.add_flow(last_dp, 1, match, actions)
-        match = last_dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, eth_type=ether_types.ETH_TYPE_ARP)
+        self.add_flow(last_dp, 10, match, actions)
+        match = last_dp.ofproto_parser.OFPMatch(arp_tpa=dst_ip, arp_spa=src_ip, eth_type=ether_types.ETH_TYPE_ARP)
         actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
-        self.add_flow(last_dp, 1, match, actions)
+        self.add_flow(last_dp, 10, match, actions)
 
     @set_ev_cls(event.EventSwitchEnter, event.EventLinkAdd)
     def update_topology(self, ev):
@@ -443,9 +443,13 @@ class SPRouter(app_manager.RyuApp):
 
         # Check if the msg comes from a host, no matter the message
         if self.detect_host(msg):
+            print("Host detected")
             if not self.check_hosts(msg):
+                print("Not Present")
                 self.add_host(msg)
                 self.update_arp_table(msg)
+            print("Already Present?")
+            
         
         message_type = self.arp_or_ipv4(msg)
 
@@ -459,17 +463,20 @@ class SPRouter(app_manager.RyuApp):
                 return
             else: 
                 self.add_arp_message_to_switch(msg)
-
+            #print(f"All ARP Messages: {self.arp_messages}" )
             arp_type = self.request_or_reply(msg)
-
+            
             if arp_type == "REQUEST":
                 #self.logger.info("We got an ARP Request.")
 
                 if self.check_dst_arp_table(msg):
+                    print("Hallo?")
                     if self.detect_host(msg):
+                        
                         self.send_instant_arp_reply_on_arp_request(msg)
                         return
                 else:
+                    print("Hallo!")
                     self.send_arp_request_based_on_arp(msg)
                     return
                 
@@ -545,15 +552,10 @@ class SPRouter(app_manager.RyuApp):
                 return
 
             else:
-                #self.logger.info("Update the ARP-Table.")
-                #self.update_arp_table(msg)
 
                 self.logger.info("Destination is not know, send request.")
                 self.add_message_to_ipv4_buffer(msg)
                 self.send_arp_request_based_on_ipv4(msg)
-
-                
-
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
