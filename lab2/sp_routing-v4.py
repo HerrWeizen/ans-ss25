@@ -62,26 +62,33 @@ class SPRouter(app_manager.RyuApp):
         pkt = packet.Packet(msg.data)
         ether_frame = pkt.get_protocol(ethernet.ethernet)
 
-        if ether_frame.ethertype in [ether_types.ETH_TYPE_LLDP]: #, ether_types.ETH_TYPE_IPV6]:
+        if ether_frame.ethertype in [ether_types.ETH_TYPE_LLDP, ether_types.ETH_TYPE_IPV6]:
             return True 
         else:
             return False
 
     def arp_or_ipv4(self, msg):
         pkt = packet.Packet(msg.data)
+        
+        ether_frame = pkt.get_protocol(ethernet.ethernet)
+        if ether_frame:
+            pass
+            #self.logger.info(f"Ethernet Frame found. Ethertype: {hex(ether_frame.ethertype)}")
+        else:
+            self.logger.warning("No Ethernet frame found in packet!")
+            return "UNKNOWN" # No ethernet, can't be ARP or IPV4
+
         arp_frame = pkt.get_protocol(arp.arp)
         ipv4_frame = pkt.get_protocol(ipv4.ipv4)
 
         if arp_frame:
-            #print("We got an ARP")
+            #self.logger.info("Packet identified as ARP.")
             return "ARP"
-
         elif ipv4_frame:
-            #print("We got a IPV4")
+            self.logger.info("Packet identified as IPV4.")
             return "IPV4"
-
         else:
-            #print("We got an UNKNOWN")
+            self.logger.info(f"Packet identified as UNKNOWN (neither ARP nor IPV4 after Ethernet). Protocols in packet: {pkt.protocols}")
             return "UNKNOWN"
 
     def detect_host(self, msg):
@@ -243,7 +250,7 @@ class SPRouter(app_manager.RyuApp):
 
         if (dst_ip, src_ip) in self.ipv4_buffer:
             self.logger.info(f"Retrieve from IPV4-BUFFER: ({dst_ip}, {src_ip}) -> {self.ipv4_buffer((dst_ip, src_ip))}")
-            return self.ipv4_buffer((dst_ip, src_ip))
+            return self.ipv4_buffer[(dst_ip, src_ip)]
         else:
             self.logger.info(f"There is not a stored IPV4 Packet.")
             return None
@@ -304,9 +311,10 @@ class SPRouter(app_manager.RyuApp):
         arp_frame = pkt.get_protocol(arp.arp)  
         in_port = msg.match["in_port"]
 
+        target_mac = self.arp_table[arp_frame.dst_ip]
         arp_reply = packet.Packet()
-        arp_reply.add_protocol(ethernet.ethernet(ethertype=ether_frame.ethertype, dst=ether_frame.src, src=ether_frame.dst))
-        arp_reply.add_protocol(arp.arp(opcode=arp.ARP_REPLY, src_mac=ether_frame.dst, src_ip=arp_frame.dst_ip, dst_mac=arp_frame.src_mac, dst_ip=arp_frame.src_ip))
+        arp_reply.add_protocol(ethernet.ethernet(ethertype=ether_frame.ethertype, dst=ether_frame.src, src=target_mac))
+        arp_reply.add_protocol(arp.arp(opcode=arp.ARP_REPLY, src_mac=target_mac, src_ip=arp_frame.dst_ip, dst_mac=arp_frame.src_mac, dst_ip=arp_frame.src_ip))
         arp_reply.serialize()
 
         actions = [msg.datapath.ofproto_parser.OFPActionOutput(in_port)]
@@ -352,7 +360,7 @@ class SPRouter(app_manager.RyuApp):
 
         new_pkt = packet.Packet()
         new_pkt.add_protocol(ethernet.ethernet(ethertype=ether_frame.ethertype, src=ether_frame.src, dst=dst_mac))
-        new_pkt.add_protocol(arp_frame)
+        new_pkt.add_protocol(arp.arp(opcode=arp.ARP_REPLY, src_mac=ether_frame.src, src_ip=arp_frame.src_ip, dst_mac=dst_mac, dst_ip=arp_frame.dst_ip))
         new_pkt.serialize()
 
         actions = [msg.datapath.ofproto_parser.OFPActionOutput(port_to_next_hop)]
@@ -396,34 +404,25 @@ class SPRouter(app_manager.RyuApp):
         dst_mac = self.arp_table[dst_ip]
         src_mac = self.arp_table[src_ip]
 
-        self.logger.info(f"Installiere Pfad für Ziel {dst_ip}: {path}")
+        self.logger.info(f"Install path from {src_ip} to {dst_ip}: {path}")
 
         for i in range(len(path) - 1):
             dp = self.datapaths[path[i]]
             out_port = self.switches[path[i]][path[i+1]]
-            match = dp.ofproto_parser.OFPMatch(eth_dst=dst_mac)
+            match = dp.ofproto_parser.OFPMatch(eth_dst=dst_mac, ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
             actions = [dp.ofproto_parser.OFPActionOutput(out_port)]
             self.add_flow(dp, 1, match, actions)
 
         last_dp = self.datapaths[path[-1]]
-        host_port = self.hosts[dst_ip][1]
-        match = last_dp.ofproto_parser.OFPMatch(eth_dst=dst_mac)
-        actions = [last_dp.ofproto_parser.OFPActionOutput(host_port)]
-        self.add_flow(last_dp, 1, match, actions)
-
-        for i in range(len(path)-1, 0, -1):
-            dp = self.datapaths[path[i]]
-            out_port = self.switches[path[i]][path[i-1]]
-            match = dp.ofproto_parser.OFPMatch(eth_dst=src_mac)
-            actions = [dp.ofproto_parser.OFPActionOutput(out_port)]
-            self.add_flow(dp, 1, match, actions)
-
         first_dp = self.datapaths[path[0]]
-        host_port = self.hosts[src_ip][1]
-        match = last_dp.ofproto_parser.OFPMatch(eth_dst=src_mac)
-        actions = [last_dp.ofproto_parser.OFPActionOutput(host_port)]
+
+        dst_host_port = self.hosts[dst_ip][1]
+        src_host_port = self.hosts[src_ip][1]
+
+        match = last_dp.ofproto_parser.OFPMatch(eth_dst=dst_mac, ipv4_dst=dst_ip, eth_type=ether_types.ETH_TYPE_IP)
+        actions = [last_dp.ofproto_parser.OFPActionOutput(dst_host_port)]
         self.add_flow(first_dp, 1, match, actions)
-        self.logger.info(f"SUCCESS!")
+
 
     @set_ev_cls(event.EventSwitchEnter, event.EventLinkAdd)
     def update_topology(self, ev):
@@ -483,23 +482,6 @@ class SPRouter(app_manager.RyuApp):
 
             elif arp_type == "REPLY":
                 #self.logger.info("We got an ARP Reply.")
-                 
-                if self.check_message_in_ipv4_buffer(msg):
-                    ipv4_message, _ = self.get_message_from_ipv4_buffer(msg)
-                    pkt = packet.Packet(msg.data)
-                    ipv4_frame = pkt.get_protocol(ipv4.ipv4)
-
-                    src_ip = ipv4_frame.src
-                    dst_ip = ipv4_frame.dst
-
-                    dst_dpid, dst_port = self.hosts[dst_ip]
-                    src_dpid = msg.datapath.id
-
-                    path = self.dijkstra(src_dpid, dst_dpid)
-                    self.install_path(path, dst_ip, src_ip)
-                    next_hop = path[1]
-                    port_to_next_hop = self.switches[src_dpid][next_hop]
-                    self.send_ipv4(msg, next_hop)
                 
                 # Use dijkstra for reply
                 pkt = packet.Packet(msg.data)
@@ -509,13 +491,35 @@ class SPRouter(app_manager.RyuApp):
                 dst_ip = arp_frame.dst_ip
 
                 dst_dpid, dst_port = self.hosts[dst_ip]
-                src_dpid = msg.datapath.id
+                src_dpid, src_port = self.hosts[src_ip]
 
                 path = self.dijkstra(src_dpid, dst_dpid)
                 self.install_path(path, dst_ip, src_ip)
-                next_hop = path[1]
-                port_to_next_hop = self.switches[src_dpid][next_hop]
-                self.send_arp_reply(msg, next_hop)
+
+                path_backwards = path[::-1]
+                self.install_path(path_backwards, src_ip, dst_ip)
+
+                next_hop_dpid = path[1]
+                port_to_next_hop = self.switches[src_dpid][next_hop_dpid]
+                self.send_arp_reply(msg, port_to_next_hop)
+
+                if self.check_message_in_ipv4_buffer(msg):
+                    ipv4_message, _ = self.get_message_from_ipv4_buffer(msg)
+                    pkt = packet.Packet(msg.data)
+                    ipv4_frame = pkt.get_protocol(ipv4.ipv4)
+
+                    src_ip = ipv4_frame.src
+                    dst_ip = ipv4_frame.dst
+
+                    dst_dpid, dst_port = self.hosts[dst_ip]
+                    src_dpid, src_port = self.hosts[src_ip]
+
+                    path = self.dijkstra(src_dpid, dst_dpid)
+                    self.install_path(path, dst_ip, src_ip)
+                    next_hop = path[1]
+                    port_to_next_hop = self.switches[src_dpid][next_hop]
+                    self.send_ipv4(msg, next_hop)
+                    return
 
         elif message_type == "IPV4":
             #self.logger.info(f"HI! We got a IPV4")
