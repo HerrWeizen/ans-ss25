@@ -189,7 +189,7 @@ class SPRouter(app_manager.RyuApp):
         moin = (arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac) in self.arp_messages[dpid][arp_type]
 
         if moin:
-            self.logger.info(f"{arp_type} on Switch {dpid} from {arp_frame.src_ip} to {arp_frame.dst_ip} ALREADY PRESENT")
+            #self.logger.info(f"{arp_type} on Switch {dpid} from {arp_frame.src_ip} to {arp_frame.dst_ip} ALREADY PRESENT")
             return True
         else:
             return False 
@@ -209,7 +209,7 @@ class SPRouter(app_manager.RyuApp):
             return None
         
         self.arp_messages[dpid][arp_type].add((arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac))
-        self.logger.info(f"On Switch {dpid} {arp_type} added: {arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac}")
+        #self.logger.info(f"On Switch {dpid} {arp_type} added: {arp_frame.src_ip, arp_frame.dst_ip, arp_frame.src_mac}")
         return True
 
     def add_to_ipv4_buffer(self, msg):
@@ -285,7 +285,7 @@ class SPRouter(app_manager.RyuApp):
         actions = [msg.datapath.ofproto_parser.OFPActionOutput(msg.datapath.ofproto.OFPP_FLOOD)]
         out = msg.datapath.ofproto_parser.OFPPacketOut(datapath=msg.datapath, buffer_id=msg.datapath.ofproto.OFP_NO_BUFFER, in_port=msg.datapath.ofproto.OFPP_CONTROLLER, actions=actions, data=arp_request.data)
         
-        self.logger.info(f"Send ARP Request flooding from Switch {dpid} for {dst_ip}")
+        #self.logger.info(f"Send ARP Request flooding from Switch {dpid} for {dst_ip}")
         msg.datapath.send_msg(out)
 
     def add_message_to_ipv4_buffer(self, msg):
@@ -423,16 +423,18 @@ class SPRouter(app_manager.RyuApp):
         # add all switches to self.switches
         self.switches.clear()
 
+        count = 0
         for switch in get_switch(self, None):
             self.switches[switch.dp.id] = {}
             self.datapaths[switch.dp.id] = switch.dp
             self.arp_messages[switch.dp.id] = {"arp_reply": set(), "arp_request": set()}
+            count += 1
 
         # add all links
         for link in get_link(self, None):
             self.switches[link.src.dpid][link.dst.dpid] = link.src.port_no
 
-        self.logger.info("Topologie aktualisiert.")
+        self.logger.info(f"Topologie aktualisiert. Switches found: {count}")
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
@@ -443,12 +445,9 @@ class SPRouter(app_manager.RyuApp):
 
         # Check if the msg comes from a host, no matter the message
         if self.detect_host(msg):
-            print("Host detected")
             if not self.check_hosts(msg):
-                print("Not Present")
                 self.add_host(msg)
                 self.update_arp_table(msg)
-            print("Already Present?")
             
         
         message_type = self.arp_or_ipv4(msg)
@@ -470,13 +469,11 @@ class SPRouter(app_manager.RyuApp):
                 #self.logger.info("We got an ARP Request.")
 
                 if self.check_dst_arp_table(msg):
-                    print("Hallo?")
                     if self.detect_host(msg):
                         
                         self.send_instant_arp_reply_on_arp_request(msg)
                         return
                 else:
-                    print("Hallo!")
                     self.send_arp_request_based_on_arp(msg)
                     return
                 
@@ -572,4 +569,4 @@ class SPRouter(app_manager.RyuApp):
         mod = parser.OFPFlowMod(datapath=datapath, priority=priority, match=match,
                                 instructions=inst)
         datapath.send_msg(mod)
-        self.logger.info(f"installed flow for {match} and {actions}")
+        #self.logger.info(f"installed flow for {match} and {actions}")
