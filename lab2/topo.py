@@ -140,7 +140,7 @@ class Fattree:
 				for aggregationSwitch in podSwitches["aggregation"]:
 					currentEdge = edgeSwitch.add_edge(aggregationSwitch)
 					self.edges.append(currentEdge)
-
+			
 			# Connect all edges between Aggregation and Core
 			for aggIndex, aggregationSwitch in enumerate(podSwitches["aggregation"]):
 				for coreIndex in range(k // 2):
