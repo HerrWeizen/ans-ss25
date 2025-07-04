@@ -68,7 +68,7 @@ parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout s
       packet.extract(hdr.eth);
       transition select(hdr.eth.etherType) {
           ether_type_t.ETHTYPE_SML: parse_sml;
-          default: reject;
+          default: accept;
       }
   }
   
@@ -79,14 +79,18 @@ parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout s
   
 }
 
-control AggregateAndCheck(
+control AggregateAndGetValues(
     in headers hdr,
     inout register<bit<8>> pkt_counter,
     inout register<bit<32>> sum0_register,
     inout register<bit<32>> sum1_register,
     inout register<bit<32>> sum2_register,
     inout register<bit<32>> sum3_register,
-    out bit<8> count_result
+    out bit<8> count_result,
+    out bit<32> val0,
+    out bit<32> val1,
+    out bit<32> val2,
+    out bit<32> val3
 ) {
   apply {
     bit<8> count;
@@ -106,18 +110,34 @@ control AggregateAndCheck(
       val1 = val1 + hdr.sml.val1;
       val2 = val2 + hdr.sml.val2;
       val3 = val3 + hdr.sml.val3;
+    }
+    count_result = count;
+  }
+}
 
+control WriteAggregatedValues(
+    in bit<32> val0,
+    in bit<32> val1,
+    in bit<32> val2,
+    in bit<32> val3,
+    inout register<bit<32>> sum0_register,
+    inout register<bit<32>> sum1_register,
+    inout register<bit<32>> sum2_register,
+    inout register<bit<32>> sum3_register
+) {
+  apply{
+    @atomic{
       sum0_register.write(0, val0);
       sum1_register.write(0, val1);
       sum2_register.write(0, val2);
       sum3_register.write(0, val3);
     }
-
-    count_result = count;
   }
 }
 
-control AtomicReset32(inout register<bit<32>> register) {
+control Reset32(
+  inout register<bit<32>> register
+) {
   apply {
     @atomic {
       bit<32> zero = 0;
@@ -126,7 +146,9 @@ control AtomicReset32(inout register<bit<32>> register) {
   }
 }
 
-control AtomicReset8(inout register<bit<8>> register) {
+control Reset8(
+  inout register<bit<8>> register
+) {
   apply {
     @atomic {
       bit<8> zero = 0;
@@ -135,30 +157,15 @@ control AtomicReset8(inout register<bit<8>> register) {
   }
 }
 
-control SetSMLHeaderValues(inout headers hdr) {
-  apply {
-    bit<32> val0, val1, val2, val3;
-
-    @atomic {
-      sum0_register.read(val0, 0);
-      sum1_register.read(val1, 0);
-      sum2_register.read(val2, 0);
-      sum3_register.read(val3, 0);
-    }
-
-    hdr.sml.val0 = val0;
-    hdr.sml.val1 = val1;
-    hdr.sml.val2 = val2;
-    hdr.sml.val3 = val3;
-  }
-}
-
-control TheIngress(inout headers hdr,inout metadata meta, inout standard_metadata_t standard_metadata) {
-  
-  AtomicReset32() reset_32;
-  AtomicReset8() reset_8;
-  AggregateAndCheck() aggregate_and_check;
-  SetSMLHeaderValues() set_sml_header_values;
+control TheIngress(
+  inout headers hdr,
+  inout metadata meta,
+  inout standard_metadata_t standard_metadata
+) {  
+  Reset32() reset_32;
+  Reset8() reset_8;
+  AggregateAndGetValues() aggregate_and_get_values;
+  WriteAggregatedValues() write_aggregated_values;
 
   action drop() {
     mark_to_drop(standard_metadata);
@@ -180,6 +187,13 @@ control TheIngress(inout headers hdr,inout metadata meta, inout standard_metadat
     reset_8.apply(pkt_counter);
   }
 
+  action set_sml_values(in bit<32> val0, in bit<32> val1, in bit<32> val2, in bit<32> val3){
+    hdr.sml.val0 = val0;
+    hdr.sml.val1 = val1;
+    hdr.sml.val2 = val2;
+    hdr.sml.val3 = val3;
+  }
+
   table ethernet_table {
     key = {
       hdr.eth.dstAddr: exact;
@@ -198,12 +212,14 @@ control TheIngress(inout headers hdr,inout metadata meta, inout standard_metadat
     if(hdr.eth.etherType == ether_type_t.ETHTYPE_SML){
       if(hdr.sml.isValid()){
         bit<8> count;
-        aggregate_and_check.apply(hdr, pkt_counter, sum0_register, sum1_register, sum2_register, sum3_register, count);
+        bit<32> val0, val1, val2, val3;
+        aggregate_and_get_values.apply(hdr, pkt_counter, sum0_register, sum1_register, sum2_register, sum3_register, count, val0, val1, val2, val3);
         if(count == NUM_WORKERS) {
-          set_sml_header_values(hdr);
+          set_sml_values(val0, val1, val2, val3);
           reset_all_registers();
           multicast(1);
         } else {
+          write_aggregated_values.apply(val0, val1, val2, val3, sum0_register, sum1_register, sum2_register, sum3_register);
           drop();
         }
       }
