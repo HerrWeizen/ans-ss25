@@ -19,8 +19,6 @@
  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-
 #include <core.p4>
 #include <v1model.p4>
 #include "numworkers.p4"
