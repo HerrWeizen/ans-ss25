@@ -68,7 +68,7 @@ parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout s
       packet.extract(hdr.eth);
       transition select(hdr.eth.etherType) {
           ether_type_t.ETHTYPE_SML: parse_sml;
-          default: accept;
+          default: reject;
       }
   }
   
