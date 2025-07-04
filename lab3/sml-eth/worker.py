@@ -22,18 +22,38 @@
 from lib.gen import GenInts, GenMultipleOfInRange
 from lib.test import CreateTestData, RunIntTest
 from lib.worker import *
-from scapy.all import Packet
+from scapy.all import Packet, sendp, sniff, BitEnumField, ShortField, FieldListField, Ether
+from enum import Enum
 import os
 
-NUM_ITER   = 1     # TODO: Make sure your program can handle larger values
-CHUNK_SIZE = 4  # TODO: Define me
 
+NUM_ITER   = 1
+CHUNK_SIZE = 4 
+
+class WorkerType(Enum):
+    FORWARD_ONLY = 0
+    SWITCH_ONLY = 1
 
 class SwitchML(Packet):
     name = "SwitchMLPacket"
     fields_desc = [
-        # TODO: Implement me
+        BitEnumField("workerType", 0, 1, {
+            0: "FORWARD_ONLY",
+            1: "SWITCH_ML"
+        }),
+        ShortField("worker_rank", 0),
+        FieldListField("vals", [0]*CHUNK_SIZE, IntField("", 0), count=CHUNK_SIZE)
     ]
+
+bind_layers(Ether, SwitchML, type=0x080D)
+
+def send(packet, iface):
+    sendp(packet, iface=iface)
+    return True
+
+def receive_sml_response(iface):
+    packet = sniff(count=1, iface=iface, prn=lambda x: x.show())
+    return packet[0]
 
 def AllReduce(iface, rank, data, result):
     """
@@ -46,8 +66,16 @@ def AllReduce(iface, rank, data, result):
 
     This function is blocking, i.e. only returns with a result or error
     """
-    # TODO: Implement me
-    pass
+    chunk_start = 0
+    vector_length = len(data)
+    result = [0]*vector_length
+
+    while chunk_start < vector_length:
+        chunk = data[chunk_start:chunk_start+CHUNK_SIZE]
+        packet_out = Ether(dst="ff:ff:ff:ff:ff:ff", type=0x080D) / SwitchML(workerType=1, worker_rank=rank, vals=chunk)
+        send(packet_out, iface)
+        packet_in = receive_sml_response(iface)
+        result[chunk_start:chunk_start+CHUNK_SIZE] = packet_in[SwitchML].vals
 
 def generate_p4_chunk_size(filename="chunksize.p4"):
     path = os.path.join("p4", filename)
@@ -55,7 +83,7 @@ def generate_p4_chunk_size(filename="chunksize.p4"):
         f.write(f"#define CHUNK_SIZE {CHUNK_SIZE}")
         
 def main():
-    generate_p4_defines()
+    generate_p4_chunk_size()
     iface = 'eth0'
     rank = GetRankOrExit()
     Log("Started...")
