@@ -27,11 +27,26 @@ import os
 
 NUM_WORKERS = 2 # TODO: Make sure your program can handle larger values
 
+def generate_p4_num_workers(filename="numworkers.p4"):
+    path = os.path.join("p4", filename)
+    with open(path, "w") as f:
+        f.write(f"#define NUM_WORKERS {NUM_WORKERS}")
+
+def getWorkerIP(wid):
+    return "10.0.0.%d" % (wid + 1)
+
+def getWorkerMAC(wid):
+    return "00:00:00:00:01:%02x" % (wid + 1)
+
 class SMLTopo(Topo):
     def __init__(self, **opts):
         Topo.__init__(self, **opts)
-        # TODO: Implement me. Feel free to modify the constructor signature
-        # NOTE: Make sure worker names are consistent with RunWorkers() below
+
+        sw = self.addSwitch('s1')
+
+        for i in range(NUM_WORKERS):
+            worker = self.addHost('w%d' % i, ip=getWorkerIP(i), mac=getWorkerMAC(i))
+            self.addLink(worker, sw, port2=i)
 
 def RunWorkers(net):
     """
@@ -47,20 +62,25 @@ def RunWorkers(net):
     for i in range(NUM_WORKERS):
         net.get(worker(i)).waitOutput()
 
-def generate_p4_num_workers(filename="numworkers.p4"):
-    path = os.path.join("p4", filename)
-    with open(path, "w") as f:
-        f.write(f"#define NUM_WORKERS {NUM_WORKERS}")
-
 def RunControlPlane(net):
     """
     One-time control plane configuration
     """
-    # TODO: Implement me (if needed)
-    pass
+    for i in range(NUM_WORKERS):
+        sw.insertTableEntry(table_name='TheIngress.ethernet_table',
+                            match_fields={'hdr.eth.dstAddr': f'{getWorkerMAC(i)}'},
+                            action_name='TheIngress.l2_forward',
+                            action_params={'port': i})
+
+    sw.insertTableEntry(table_name='TheIngress.ethernet_table',
+                        match_fields={'hdr.eth.dstAddr': 'ff:ff:ff:ff:ff:ff'},
+                        action_name='TheIngress.multicast',
+                        action_params={'mgid': 1})
+    
+    sw.addMulticastGroup(mgid=1, ports=range(NUM_WORKERS))
 
 generate_p4_num_workers()
-topo = None # TODO: Create an SMLTopo instance
+topo = SMLTopo()
 net = P4Mininet(program="p4/main.p4", topo=topo)
 net.run_control_plane = lambda: RunControlPlane(net)
 net.run_workers = lambda: RunWorkers(net)
