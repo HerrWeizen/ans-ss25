@@ -23,12 +23,18 @@
 #include <v1model.p4>
 #include "numworkers.p4"
 #define CHUNK_SIZE 4
-#define NUM_WORKES 2
+#define NUM_WORKERS 2
 
 typedef bit<9>  sw_port_t;   /*< Switch port */
 typedef bit<48> mac_addr_t;  /*< MAC address */
-enum bit<8> worker_type_t {FORWARD_ONLY = 0, SWITCH_ML = 1}  /*< Worker Type */
-enum bit<16> ether_type_t {ETHTYPE_ARP = 0x0806, ETHTYPE_IP = 0x0800, ETHTYPE_SML = 0x080D} /*< Ether types used to find SML package */
+enum bit<8> worker_type_t {FORWARD_ONLY = 0, SWITCH_ML = 1};  /*< Worker Type */
+enum bit<16> ether_type_t {ETHTYPE_ARP = 0x0806, ETHTYPE_IP = 0x0800, ETHTYPE_SML = 0x080D}; /*< Ether types used to find SML package */
+
+register<bit<8>>(1) pkt_counter;
+register<bit<32>>(1) sum0_register;
+register<bit<32>>(1) sum1_register;
+register<bit<32>>(1) sum2_register;
+register<bit<32>>(1) sum3_register;
 
 header ethernet_t {
   mac_addr_t dstAddr;
@@ -59,8 +65,11 @@ parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout s
   }
   
   state parse_ethernet {
-    packet.extract(hdr.eth);
-    transition parse_sml;
+      packet.extract(hdr.eth);
+      transition select(hdr.eth.etherType) {
+          ether_type_t.ETHTYPE_SML: parse_sml;
+          default: accept;
+      }
   }
   
   state parse_sml {
@@ -70,72 +79,87 @@ parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout s
   
 }
 
+control AggregateAndCheck(
+    in headers hdr,
+    inout register<bit<8>> pkt_counter,
+    inout register<bit<32>> sum0_register,
+    inout register<bit<32>> sum1_register,
+    inout register<bit<32>> sum2_register,
+    inout register<bit<32>> sum3_register,
+    out bit<8> count_result
+) {
+  apply {
+    bit<8> count;
+    bit<32> val0, val1, val2, val3;
+
+    @atomic {
+      pkt_counter.read(count, 0);
+      count = count + 1;
+      pkt_counter.write(0, count);
+
+      sum0_register.read(val0, 0);
+      sum1_register.read(val1, 0);
+      sum2_register.read(val2, 0);
+      sum3_register.read(val3, 0);
+
+      val0 = val0 + hdr.sml.val0;
+      val1 = val1 + hdr.sml.val1;
+      val2 = val2 + hdr.sml.val2;
+      val3 = val3 + hdr.sml.val3;
+
+      sum0_register.write(0, val0);
+      sum1_register.write(0, val1);
+      sum2_register.write(0, val2);
+      sum3_register.write(0, val3);
+    }
+
+    count_result = count;
+  }
+}
+
+control AtomicReset32(inout register<bit<32>> register) {
+  apply {
+    @atomic {
+      bit<32> zero = 0;
+      register.write(0, zero);
+    }
+  }
+}
+
+control AtomicReset8(inout register<bit<8>> register) {
+  apply {
+    @atomic {
+      bit<8> zero = 0;
+      register.write(0, zero);
+    }
+  }
+}
+
+control SetSMLHeaderValues(inout headers hdr) {
+  apply {
+    bit<32> val0, val1, val2, val3;
+
+    @atomic {
+      sum0_register.read(val0, 0);
+      sum1_register.read(val1, 0);
+      sum2_register.read(val2, 0);
+      sum3_register.read(val3, 0);
+    }
+
+    hdr.sml.val0 = val0;
+    hdr.sml.val1 = val1;
+    hdr.sml.val2 = val2;
+    hdr.sml.val3 = val3;
+  }
+}
+
 control TheIngress(inout headers hdr,inout metadata meta, inout standard_metadata_t standard_metadata) {
-
-  register<bit<8>>(1) pkt_counter;
-  register<bit<32>>(4) sum_register;
-
-  action count_packet() {
-    bit<8> count;
-    pkt_counter.read(count,0);
-    count = count +1;
-    pkt_counter.write(0,count);
-  }
-
-  action reset_pkt_counter() {
-    bit<8> count;
-    count = 0;
-    pkt_counter.write(0, count);
-  }
-
-  action update_sum_register() {
-    bit<32> current_val0;
-    bit<32> current_val1;
-    bit<32> current_val2;
-    bit<32> current_val3;
-
-    sum_register.read(current_val0, 0);
-    sum_register.read(current_val1, 1);
-    sum_register.read(current_val2, 2);
-    sum_register.read(current_val3, 3);
-
-    current_val0 = current_val0 + hdr.sml.val0;
-    current_val1 = current_val1 + hdr.sml.val1;
-    current_val2 = current_val2 + hdr.sml.val2;
-    current_val3 = current_val3 + hdr.sml.val3;
-
-    sum_register.write(0, current_val0);
-    sum_register.write(1, current_val1);
-    sum_register.write(2, current_val2);
-    sum_register.write(3, current_val3);
-  }
-
-  action set_sml_values() {
-    bit<32> current_val0;
-    bit<32> current_val1;
-    bit<32> current_val2;
-    bit<32> current_val3;
-
-    sum_register.read(current_val0, 0);
-    sum_register.read(current_val1, 1);
-    sum_register.read(current_val2, 2);
-    sum_register.read(current_val3, 3);
-
-    hdr.sml.val0 = current_val0;
-    hdr.sml.val1 = current_val1;
-    hdr.sml.val2 = current_val2;
-    hdr.sml.val3 = current_val3;
-  }
-
-  action reset_sum_register() {
-    bit<32> zero;
-    zero = 0;
-    sum_register.write(0, zero);
-    sum_register.write(1, zero);
-    sum_register.write(2, zero);
-    sum_register.write(3, zero);
-  }
   
+  AtomicReset32() reset_32;
+  AtomicReset8() reset_8;
+  AggregateAndCheck() aggregate_and_check;
+  SetSMLHeaderValues() set_sml_header_values;
+
   action drop() {
     mark_to_drop(standard_metadata);
   }
@@ -146,6 +170,14 @@ control TheIngress(inout headers hdr,inout metadata meta, inout standard_metadat
 
   action multicast(bit<16> mgid) {
     standard_metadata.mcast_grp = mgid;
+  }
+  
+  action reset_all_registers() {
+    reset_32.apply(sum0_register);
+    reset_32.apply(sum1_register);
+    reset_32.apply(sum2_register);
+    reset_32.apply(sum3_register);
+    reset_8.apply(pkt_counter);
   }
 
   table ethernet_table {
@@ -165,14 +197,11 @@ control TheIngress(inout headers hdr,inout metadata meta, inout standard_metadat
   apply{
     if(hdr.eth.etherType == ether_type_t.ETHTYPE_SML){
       if(hdr.sml.isValid()){
-        count_packet();
-        update_sum_register();
         bit<8> count;
-        pkt_counter.read(count, 0);
-        if(count == NUM_WORKES) {
-          set_sml_values();
-          reset_pkt_counter();
-          reset_sum_register();
+        aggregate_and_check.apply(hdr, pkt_counter, sum0_register, sum1_register, sum2_register, sum3_register, count);
+        if(count == NUM_WORKERS) {
+          set_sml_header_values(hdr);
+          reset_all_registers();
           multicast(1);
         } else {
           drop();
