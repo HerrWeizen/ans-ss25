@@ -66,6 +66,8 @@ def RunControlPlane(net):
     """
     One-time control plane configuration
     """
+    sw = net.get('s1')
+    
     for i in range(NUM_WORKERS):
         sw.insertTableEntry(table_name='TheIngress.ethernet_table',
                             match_fields={'hdr.eth.dstAddr': f'{getWorkerMAC(i)}'},

@@ -22,7 +22,7 @@
 from lib.gen import GenInts, GenMultipleOfInRange
 from lib.test import CreateTestData, RunIntTest
 from lib.worker import *
-from scapy.all import Packet, sendp, sniff, BitEnumField, ShortField, FieldListField, Ether
+from scapy.all import Packet, sendp, sniff, ShortField, FieldListField, Ether, ByteEnumField
 from enum import Enum
 import os
 
@@ -37,7 +37,7 @@ class WorkerType(Enum):
 class SwitchML(Packet):
     name = "SwitchMLPacket"
     fields_desc = [
-        BitEnumField("workerType", 0, 1, {
+        ByteEnumField("workerType", 0, {
             0: "FORWARD_ONLY",
             1: "SWITCH_ML"
         }),

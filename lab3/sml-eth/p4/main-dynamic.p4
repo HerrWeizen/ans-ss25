@@ -38,13 +38,13 @@ header ethernet_t {
 }
 
 header sml_t {
-  worker_type workerType;
+  worker_type_t workerType;
   bit<16> worker_rank;
   bit<32> vals[CHUNK_SIZE];
 }
 
 struct headers {
-  ethernet_t eth;
+  ether_type_t eth;
   sml_t sml;
 }
 

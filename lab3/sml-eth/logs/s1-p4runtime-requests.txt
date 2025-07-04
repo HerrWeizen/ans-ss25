@@ -1,0 +1,119 @@
+
+[2025-07-04 12:10:09.555] /p4.v1.P4Runtime/SetForwardingPipelineConfig
+---
+Message too long (51871 bytes)! Skipping log...
+---
+
+[2025-07-04 12:10:09.566] /p4.v1.P4Runtime/Write
+---
+election_id {
+  low: 1
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 35386677
+      match {
+        field_id: 1
+        exact {
+          value: "\000\000\000\000\001\001"
+        }
+      }
+      action {
+        action {
+          action_id: 30395762
+          params {
+            param_id: 1
+            value: "\000\000"
+          }
+        }
+      }
+    }
+  }
+}
+---
+
+[2025-07-04 12:10:09.568] /p4.v1.P4Runtime/Write
+---
+election_id {
+  low: 1
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 35386677
+      match {
+        field_id: 1
+        exact {
+          value: "\000\000\000\000\001\002"
+        }
+      }
+      action {
+        action {
+          action_id: 30395762
+          params {
+            param_id: 1
+            value: "\000\001"
+          }
+        }
+      }
+    }
+  }
+}
+---
+
+[2025-07-04 12:10:09.569] /p4.v1.P4Runtime/Write
+---
+election_id {
+  low: 1
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 35386677
+      match {
+        field_id: 1
+        exact {
+          value: "\377\377\377\377\377\377"
+        }
+      }
+      action {
+        action {
+          action_id: 33499716
+          params {
+            param_id: 1
+            value: "\000\001"
+          }
+        }
+      }
+    }
+  }
+}
+---
+
+[2025-07-04 12:10:09.570] /p4.v1.P4Runtime/Write
+---
+election_id {
+  low: 1
+}
+updates {
+  type: INSERT
+  entity {
+    packet_replication_engine_entry {
+      multicast_group_entry {
+        multicast_group_id: 1
+        replicas {
+          egress_port: 0
+        }
+        replicas {
+          egress_port: 1
+          instance: 1
+        }
+      }
+    }
+  }
+}
+---

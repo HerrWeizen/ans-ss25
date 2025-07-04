@@ -1,0 +1,135 @@
+pkg_info {
+  arch: "v1model"
+}
+tables {
+  preamble {
+    id: 35386677
+    name: "TheIngress.ethernet_table"
+    alias: "ethernet_table"
+  }
+  match_fields {
+    id: 1
+    name: "hdr.eth.dstAddr"
+    bitwidth: 48
+    match_type: EXACT
+  }
+  action_refs {
+    id: 30395762
+  }
+  action_refs {
+    id: 33499716
+  }
+  action_refs {
+    id: 19188171
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 1024
+}
+actions {
+  preamble {
+    id: 21257015
+    name: "NoAction"
+    alias: "NoAction"
+    annotations: "@noWarn(\"unused\")"
+  }
+}
+actions {
+  preamble {
+    id: 29740456
+    name: "TheIngress.count_packet"
+    alias: "count_packet"
+  }
+}
+actions {
+  preamble {
+    id: 25166985
+    name: "TheIngress.reset_pkt_counter"
+    alias: "reset_pkt_counter"
+  }
+}
+actions {
+  preamble {
+    id: 20428916
+    name: "TheIngress.update_sum_register"
+    alias: "update_sum_register"
+  }
+}
+actions {
+  preamble {
+    id: 30543999
+    name: "TheIngress.set_sml_values"
+    alias: "set_sml_values"
+  }
+}
+actions {
+  preamble {
+    id: 32015986
+    name: "TheIngress.reset_sum_register"
+    alias: "reset_sum_register"
+  }
+}
+actions {
+  preamble {
+    id: 19188171
+    name: "TheIngress.drop"
+    alias: "drop"
+  }
+}
+actions {
+  preamble {
+    id: 30395762
+    name: "TheIngress.l2_forward"
+    alias: "l2_forward"
+  }
+  params {
+    id: 1
+    name: "port"
+    bitwidth: 9
+  }
+}
+actions {
+  preamble {
+    id: 33499716
+    name: "TheIngress.multicast"
+    alias: "multicast"
+  }
+  params {
+    id: 1
+    name: "mgid"
+    bitwidth: 16
+  }
+}
+registers {
+  preamble {
+    id: 377447658
+    name: "TheIngress.pkt_counter"
+    alias: "pkt_counter"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 8
+      }
+    }
+  }
+  size: 1
+}
+registers {
+  preamble {
+    id: 372466299
+    name: "TheIngress.sum_register"
+    alias: "sum_register"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 32
+      }
+    }
+  }
+  size: 4
+}
+type_info {
+}
