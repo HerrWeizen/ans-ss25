@@ -22,17 +22,12 @@
 from lib.gen import GenInts, GenMultipleOfInRange
 from lib.test import CreateTestData, RunIntTest
 from lib.worker import *
-from scapy.all import Packet, sendp, sniff, ShortField, FieldListField, Ether, ByteEnumField
-from enum import Enum
-import os
+from scapy.all import Packet, Ether, srp1, bind_layers, BitField, ShortField, IntField, FieldListField, get_if_hwaddr, ByteEnumField
 
+NUM_ITER   = 5
+CHUNK_SIZE = 4
 
-NUM_ITER   = 1
-CHUNK_SIZE = 4 
-
-class WorkerType(Enum):
-    FORWARD_ONLY = 0
-    SWITCH_ONLY = 1
+ETHERTYPE_SWITCHML = 0x080D
 
 class SwitchML(Packet):
     name = "SwitchMLPacket"
@@ -42,18 +37,13 @@ class SwitchML(Packet):
             1: "SWITCH_ML"
         }),
         ShortField("worker_rank", 0),
-        FieldListField("vals", [0]*CHUNK_SIZE, IntField("", 0), count=CHUNK_SIZE)
+        BitField("val0", 0, 32),
+        BitField("val1", 0, 32),
+        BitField("val2", 0, 32),
+        BitField("val3", 0, 32)
     ]
 
-bind_layers(Ether, SwitchML, type=0x080D)
-
-def send(packet, iface):
-    sendp(packet, iface=iface)
-    return True
-
-def receive_sml_response(iface):
-    packet = sniff(count=1, iface=iface, prn=lambda x: x.show())
-    return packet[0]
+bind_layers(Ether, SwitchML, type=ETHERTYPE_SWITCHML)
 
 def AllReduce(iface, rank, data, result):
     """
@@ -62,37 +52,48 @@ def AllReduce(iface, rank, data, result):
     :param str  iface: the ethernet interface used for all-reduce
     :param int   rank: the worker's rank
     :param [int] data: the input vector for this worker
-    :param [int]  res: the output vector
+    :param [int]  res: the output vector (this will be populated)
 
     This function is blocking, i.e. only returns with a result or error
     """
+    mac = get_if_hwaddr(iface)
     chunk_start = 0
     vector_length = len(data)
-    result = [0]*vector_length
 
     while chunk_start < vector_length:
-        chunk = data[chunk_start:chunk_start+CHUNK_SIZE]
-        packet_out = Ether(dst="ff:ff:ff:ff:ff:ff", type=0x080D) / SwitchML(workerType=1, worker_rank=rank, vals=chunk)
-        send(packet_out, iface)
-        packet_in = receive_sml_response(iface)
-        result[chunk_start:chunk_start+CHUNK_SIZE] = packet_in[SwitchML].vals
+        chunk_to_send = data[chunk_start : chunk_start + CHUNK_SIZE]
 
-def generate_p4_chunk_size(filename="chunksize.p4"):
-    path = os.path.join("p4", filename)
-    with open(path, "w") as f:
-        f.write(f"#define CHUNK_SIZE {CHUNK_SIZE}")
-        
+        pkt = Ether(dst='ff:ff:ff:ff:ff:ff', src=mac, type=ETHERTYPE_SWITCHML) / SwitchML(workerType="SWITCH_ML", worker_rank=rank, val0 = chunk_to_send[0], val1 = chunk_to_send[1], val2 = chunk_to_send[2], val3 = chunk_to_send[3])
+
+        response = srp1(pkt, iface=iface, timeout=10, verbose=False)
+
+        if response and response.haslayer(SwitchML):
+            aggregated_chunk = [0] * 4
+            aggregated_chunk[0] = response[SwitchML].val0
+            aggregated_chunk[1] = response[SwitchML].val1
+            aggregated_chunk[2] = response[SwitchML].val2
+            aggregated_chunk[3] = response[SwitchML].val3
+
+            Log(f"Aggregated Chunk: {aggregated_chunk}")
+            result[chunk_start : chunk_start + CHUNK_SIZE] = aggregated_chunk
+
+        chunk_start += CHUNK_SIZE
+
+    return result
+
 def main():
-    generate_p4_chunk_size()
     iface = 'eth0'
     rank = GetRankOrExit()
     Log("Started...")
     for i in range(NUM_ITER):
-        num_elem = GenMultipleOfInRange(2, 2048, 2 * CHUNK_SIZE) # You may want to 'fix' num_elem for debugging
+        Log(f"Iteration {i}")
+        num_elem = GenMultipleOfInRange(CHUNK_SIZE, 2048, CHUNK_SIZE)
         data_out = GenInts(num_elem)
-        data_in = GenInts(num_elem, 0)
+        Log(f"Data Out: {data_out}")
+        data_in = [0] * num_elem
         CreateTestData("eth-iter-%d" % i, rank, data_out)
-        AllReduce(iface, rank, data_out, data_in)
+        data_in = AllReduce(iface, rank, data_out, data_in)
+        Log(f"Data In: {data_in}")
         RunIntTest("eth-iter-%d" % i, rank, data_in, True)
     Log("Done")
 
