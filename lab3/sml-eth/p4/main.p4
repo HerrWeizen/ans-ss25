@@ -11,7 +11,7 @@
  The above copyright notice and this permission notice shall be included in all
  copies or substantial portions of the Software.
 
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY, EXPRESS OR
  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
  FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
  COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
@@ -21,25 +21,21 @@
 
 #include <core.p4>
 #include <v1model.p4>
-#include "numworkers.p4"
-#define CHUNK_SIZE 4
-#define NUM_WORKERS 2
+
+#define NUM_WORKERS 8
+#define CHUNK_SIZE  4
+
 
 typedef bit<9>  sw_port_t;   /*< Switch port */
 typedef bit<48> mac_addr_t;  /*< MAC address */
 enum bit<8> worker_type_t {FORWARD_ONLY = 0, SWITCH_ML = 1};  /*< Worker Type */
 enum bit<16> ether_type_t {ETHTYPE_ARP = 0x0806, ETHTYPE_IP = 0x0800, ETHTYPE_SML = 0x080D}; /*< Ether types used to find SML package */
 
-register<bit<8>>(1) pkt_counter;
-register<bit<32>>(1) sum0_register;
-register<bit<32>>(1) sum1_register;
-register<bit<32>>(1) sum2_register;
-register<bit<32>>(1) sum3_register;
 
 header ethernet_t {
-  mac_addr_t dstAddr;
-  mac_addr_t srcAddr;
-  ether_type_t etherType;
+    mac_addr_t dst_addr;
+    mac_addr_t src_addr;
+    bit<16>    ether_type;
 }
 
 header sml_t {
@@ -52,151 +48,59 @@ header sml_t {
 }
 
 struct headers {
-  ethernet_t eth;
-  sml_t sml;
+    ethernet_t eth;
+    sml_t      sml;
 }
 
 struct metadata { /* empty */ }
 
-parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-  
-  state start {
-    transition parse_ethernet;
-  }
-  
-  state parse_ethernet {
-      packet.extract(hdr.eth);
-      transition select(hdr.eth.etherType) {
-          ether_type_t.ETHTYPE_SML: parse_sml;
-          default: accept;
-      }
-  }
-  
-  state parse_sml {
-    packet.extract(hdr.sml);
-    transition accept;
-  }
-  
-}
+register<bit<8>>(1) counter_register;
+register<bit<32>>(1) sum0_register;
+register<bit<32>>(1) sum1_register;
+register<bit<32>>(1) sum2_register;
+register<bit<32>>(1) sum3_register;
 
-control AggregateAndGetValues(
-    in headers hdr,
-    inout register<bit<8>> pkt_counter,
-    inout register<bit<32>> sum0_register,
-    inout register<bit<32>> sum1_register,
-    inout register<bit<32>> sum2_register,
-    inout register<bit<32>> sum3_register,
-    out bit<8> count_result,
-    out bit<32> val0,
-    out bit<32> val1,
-    out bit<32> val2,
-    out bit<32> val3
-) {
-  apply {
-    bit<8> count;
-    bit<32> val0, val1, val2, val3;
-
-    @atomic {
-      pkt_counter.read(count, 0);
-      count = count + 1;
-      pkt_counter.write(0, count);
-
-      sum0_register.read(val0, 0);
-      sum1_register.read(val1, 0);
-      sum2_register.read(val2, 0);
-      sum3_register.read(val3, 0);
-
-      val0 = val0 + hdr.sml.val0;
-      val1 = val1 + hdr.sml.val1;
-      val2 = val2 + hdr.sml.val2;
-      val3 = val3 + hdr.sml.val3;
+parser TheParser(packet_in packet,
+                 out headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t standard_metadata) {
+    state start {
+        packet.extract(hdr.eth);
+        transition select(hdr.eth.ether_type) {
+            ether_type_t.ETHTYPE_SML: parse_sml;
+            default: accept;
+        }
     }
-    count_result = count;
-  }
-}
-
-control WriteAggregatedValues(
-    in bit<32> val0,
-    in bit<32> val1,
-    in bit<32> val2,
-    in bit<32> val3,
-    inout register<bit<32>> sum0_register,
-    inout register<bit<32>> sum1_register,
-    inout register<bit<32>> sum2_register,
-    inout register<bit<32>> sum3_register
-) {
-  apply{
-    @atomic{
-      sum0_register.write(0, val0);
-      sum1_register.write(0, val1);
-      sum2_register.write(0, val2);
-      sum3_register.write(0, val3);
+    state parse_sml {
+        packet.extract(hdr.sml);
+        transition accept;
     }
-  }
 }
 
-control Reset32(
-  inout register<bit<32>> register
-) {
-  apply {
-    @atomic {
-      bit<32> zero = 0;
-      register.write(0, zero);
+control TheIngress(inout headers hdr,
+                   inout metadata meta,
+                   inout standard_metadata_t standard_metadata) {
+
+    bit<32> val0;
+    bit<32> val1;
+    bit<32> val2;
+    bit<32> val3;
+    bit<8> pkt_count;
+ 
+
+    action multicast(bit<16> mgid) {
+        standard_metadata.mcast_grp = mgid;
     }
-  }
-}
-
-control Reset8(
-  inout register<bit<8>> register
-) {
-  apply {
-    @atomic {
-      bit<8> zero = 0;
-      register.write(0, zero);
+    action l2_forward(sw_port_t port) {
+        standard_metadata.egress_spec = port;
     }
-  }
-}
+    action drop() {
+        mark_to_drop(standard_metadata);
+    }
 
-control TheIngress(
-  inout headers hdr,
-  inout metadata meta,
-  inout standard_metadata_t standard_metadata
-) {  
-  Reset32() reset_32;
-  Reset8() reset_8;
-  AggregateAndGetValues() aggregate_and_get_values;
-  WriteAggregatedValues() write_aggregated_values;
-
-  action drop() {
-    mark_to_drop(standard_metadata);
-  }
-
-  action l2_forward(sw_port_t port) {
-    standard_metadata.egress_spec = port;
-  }
-
-  action multicast(bit<16> mgid) {
-    standard_metadata.mcast_grp = mgid;
-  }
-  
-  action reset_all_registers() {
-    reset_32.apply(sum0_register);
-    reset_32.apply(sum1_register);
-    reset_32.apply(sum2_register);
-    reset_32.apply(sum3_register);
-    reset_8.apply(pkt_counter);
-  }
-
-  action set_sml_values(in bit<32> val0, in bit<32> val1, in bit<32> val2, in bit<32> val3){
-    hdr.sml.val0 = val0;
-    hdr.sml.val1 = val1;
-    hdr.sml.val2 = val2;
-    hdr.sml.val3 = val3;
-  }
-
-  table ethernet_table {
+    table ethernet_table {
     key = {
-      hdr.eth.dstAddr: exact;
+      hdr.eth.dst_addr: exact;
     }
     actions = {
       l2_forward;
@@ -206,63 +110,98 @@ control TheIngress(
     }
     size = 1024;
     default_action = NoAction();
-  }
-
-  apply{
-    if(hdr.eth.etherType == ether_type_t.ETHTYPE_SML){
-      if(hdr.sml.isValid()){
-        bit<8> count;
-        bit<32> val0, val1, val2, val3;
-        aggregate_and_get_values.apply(hdr, pkt_counter, sum0_register, sum1_register, sum2_register, sum3_register, count, val0, val1, val2, val3);
-        if(count == NUM_WORKERS) {
-          set_sml_values(val0, val1, val2, val3);
-          reset_all_registers();
-          multicast(1);
-        } else {
-          write_aggregated_values.apply(val0, val1, val2, val3, sum0_register, sum1_register, sum2_register, sum3_register);
-          drop();
-        }
-      }
-    } else if (hdr.eth.isValid()) {
-      ethernet_table.apply();
-    } else {
-      drop();
     }
-  }
+
+    apply {
+        if (hdr.sml.isValid()) {
+
+            /* Read Currently Aggregated Values (Each Register: 1 Read / 0 Write)*/ 
+            @atomic {
+                counter_register.read(pkt_count, 0);
+                sum0_register.read(val0, 0);
+                sum1_register.read(val1, 0);
+                sum2_register.read(val2, 0);
+                sum3_register.read(val3, 0);
+            }
+
+            /* Aggregate Chunk Values */
+            @atomic{                
+                pkt_count = pkt_count + 1;
+                val0 = val0 + hdr.sml.val0;
+                val1 = val1 + hdr.sml.val1;
+                val2 = val2 + hdr.sml.val2;
+                val3 = val3 + hdr.sml.val3;
+            }
+
+            if (pkt_count < NUM_WORKERS) {
+
+                /* Store the updated Values inside the Register and drop the packet (Each Register:  1 Read / 1 Write)*/
+                @atomic{
+                    counter_register.write(0, pkt_count);
+                    sum0_register.write(0, val0);
+                    sum1_register.write(0, val1);
+                    sum2_register.write(0, val2);
+                    sum3_register.write(0, val3);
+                }
+                drop();
+            } else {
+                
+                /* Update Header Data */
+                hdr.sml.val0 = val0;
+                hdr.sml.val1 = val1;
+                hdr.sml.val2 = val2;
+                hdr.sml.val3 = val3;
+
+                /* Send package to all Switches in MulticastGroup 1 */
+                multicast(1);
+
+                /* Reset All Registers (Each Register: 1 Read / 1 Write)*/
+                @atomic{
+                    counter_register.write(0,0);
+                    sum0_register.write(0,0);
+                    sum1_register.write(0,0);
+                    sum2_register.write(0,0);
+                    sum3_register.write(0,0);
+                }
+            }
+        } else if (hdr.eth.isValid()) {
+            ethernet_table.apply();
+        } else {
+            drop();
+        }
+    }
 }
 
 control TheEgress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
-  apply {
-    /* TODO: Implement me (if needed) */
-  }
+    apply {}
 }
 
 control TheChecksumVerification(inout headers hdr, inout metadata meta) {
-  apply {
-    /* TODO: Implement me (if needed) */
-  }
+    apply {}
 }
 
 control TheChecksumComputation(inout headers  hdr, inout metadata meta) {
-  apply {
-    /* TODO: Implement me (if needed) */
-  }
+    apply {}
 }
 
 control TheDeparser(packet_out packet, in headers hdr) {
-  apply {
-    packet.emit(hdr.eth);
-    packet.emit(hdr.sml);
-  }
+    apply {
+        packet.emit(hdr.eth);
+        // CORRECTED: Removed the 'if' statement.
+        // The V1Model architecture ensures that emit() on an invalid
+        // header does nothing, so this is functionally equivalent and
+        // satisfies the compiler.
+        packet.emit(hdr.sml);
+    }
 }
 
 V1Switch(
-  TheParser(),
-  TheChecksumVerification(),
-  TheIngress(),
-  TheEgress(),
-  TheChecksumComputation(),
-  TheDeparser()
+    TheParser(),
+    TheChecksumVerification(),
+    TheIngress(),
+    TheEgress(),
+    TheChecksumComputation(),
+    TheDeparser()
 ) main;
