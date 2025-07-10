@@ -25,7 +25,7 @@ from mininet.topo import Topo
 from mininet.cli import CLI
 import os
 
-NUM_WORKERS = 2 # TODO: Make sure your program can handle larger values
+NUM_WORKERS = 8 # TODO: Make sure your program can handle larger values
 
 def generate_p4_num_workers(filename="numworkers.p4"):
     path = os.path.join("p4", filename)
@@ -58,7 +58,8 @@ def RunWorkers(net):
     worker = lambda rank: "w%i" % rank
     log_file = lambda rank: os.path.join(os.environ['APP_LOGS'], "%s.log" % worker(rank))
     for i in range(NUM_WORKERS):
-        net.get(worker(i)).sendCmd('python worker.py %d > %s' % (i, log_file(i)))
+        net.get(worker(i)).sendCmd('python3 worker.py %d > %s' % (i, log_file(i)))
+        print(f"Worker {i} started")
     for i in range(NUM_WORKERS):
         net.get(worker(i)).waitOutput()
 
@@ -70,12 +71,12 @@ def RunControlPlane(net):
     
     for i in range(NUM_WORKERS):
         sw.insertTableEntry(table_name='TheIngress.ethernet_table',
-                            match_fields={'hdr.eth.dstAddr': f'{getWorkerMAC(i)}'},
+                            match_fields={'hdr.eth.dst_addr': f'{getWorkerMAC(i)}'},
                             action_name='TheIngress.l2_forward',
                             action_params={'port': i})
 
     sw.insertTableEntry(table_name='TheIngress.ethernet_table',
-                        match_fields={'hdr.eth.dstAddr': 'ff:ff:ff:ff:ff:ff'},
+                        match_fields={'hdr.eth.dst_addr': 'ff:ff:ff:ff:ff:ff'},
                         action_name='TheIngress.multicast',
                         action_params={'mgid': 1})
     
