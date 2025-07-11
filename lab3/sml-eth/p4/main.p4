@@ -22,7 +22,7 @@
 #include <core.p4>
 #include <v1model.p4>
 
-#define NUM_WORKERS 8
+#include "numworkers.p4"
 #define CHUNK_SIZE  4
 
 
