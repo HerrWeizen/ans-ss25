@@ -189,10 +189,6 @@ control TheChecksumComputation(inout headers  hdr, inout metadata meta) {
 control TheDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.eth);
-        // CORRECTED: Removed the 'if' statement.
-        // The V1Model architecture ensures that emit() on an invalid
-        // header does nothing, so this is functionally equivalent and
-        // satisfies the compiler.
         packet.emit(hdr.sml);
     }
 }
