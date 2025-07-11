@@ -54,27 +54,22 @@ struct headers {
 
 struct metadata { /* empty */ }
 
-register<bit<8>>(1) counter_register;
-register<bit<32>>(1) sum0_register;
-register<bit<32>>(1) sum1_register;
-register<bit<32>>(1) sum2_register;
-register<bit<32>>(1) sum3_register;
-
-parser TheParser(packet_in packet,
-                 out headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    state start {
-        packet.extract(hdr.eth);
-        transition select(hdr.eth.ether_type) {
-            ether_type_t.ETHTYPE_SML: parse_sml;
-            default: accept;
-        }
-    }
-    state parse_sml {
-        packet.extract(hdr.sml);
-        transition accept;
-    }
+parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+  
+  state start {
+    transition parse_ethernet;
+  }
+  
+  state parse_ethernet {
+    packet.extract(hdr.eth);
+    transition parse_sml;
+  }
+  
+  state parse_sml {
+    packet.extract(hdr.sml)
+    transition accept
+  }
+  
 }
 
 control TheIngress(inout headers hdr,
