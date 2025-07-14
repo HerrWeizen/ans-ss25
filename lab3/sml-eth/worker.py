@@ -24,7 +24,7 @@ from lib.test import CreateTestData, RunIntTest
 from lib.worker import *
 from scapy.all import Packet, Ether, srp1, bind_layers, BitField, ShortField, IntField, FieldListField, get_if_hwaddr, ByteEnumField
 
-NUM_ITER   = 5
+NUM_ITER   = 1
 CHUNK_SIZE = 4
 
 ETHERTYPE_SWITCHML = 0x080D
@@ -59,16 +59,19 @@ def AllReduce(iface, rank, data, result):
     mac = get_if_hwaddr(iface)
     chunk_start = 0
     vector_length = len(data)
-
+    aggregated_chunk = [0] * 4
     while chunk_start < vector_length:
         chunk_to_send = data[chunk_start : chunk_start + CHUNK_SIZE]
-
+        
         pkt = Ether(dst='ff:ff:ff:ff:ff:ff', src=mac, type=ETHERTYPE_SWITCHML) / SwitchML(workerType="SWITCH_ML", worker_rank=rank, val0 = chunk_to_send[0], val1 = chunk_to_send[1], val2 = chunk_to_send[2], val3 = chunk_to_send[3])
-
-        response = srp1(pkt, iface=iface, timeout=10, verbose=False)
+        Log(f"Chunk Sent: {chunk_to_send}")
+        
+        response = srp1(pkt, iface=iface, timeout=4, verbose=False)
 
         if response and response.haslayer(SwitchML):
-            aggregated_chunk = [0] * 4
+            for index, value in enumerate(aggregated_chunk):
+                aggregated_chunk[index] = 0
+
             aggregated_chunk[0] = response[SwitchML].val0
             aggregated_chunk[1] = response[SwitchML].val1
             aggregated_chunk[2] = response[SwitchML].val2

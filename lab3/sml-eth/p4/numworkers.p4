@@ -1,1 +1,1 @@
-#define NUM_WORKERS 2
+#define NUM_WORKERS 8

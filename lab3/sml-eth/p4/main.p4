@@ -31,6 +31,12 @@ typedef bit<48> mac_addr_t;  /*< MAC address */
 enum bit<8> worker_type_t {FORWARD_ONLY = 0, SWITCH_ML = 1};  /*< Worker Type */
 enum bit<16> ether_type_t {ETHTYPE_ARP = 0x0806, ETHTYPE_IP = 0x0800, ETHTYPE_SML = 0x080D}; /*< Ether types used to find SML package */
 
+register<bit<32>>(1) sum0_register;
+register<bit<32>>(1) sum1_register;
+register<bit<32>>(1) sum2_register;
+register<bit<32>>(1) sum3_register;
+register<bit<8>>(1) counter_register;
+register<bit<8>>(1) presence_register;
 
 header ethernet_t {
     mac_addr_t dst_addr;
@@ -66,8 +72,8 @@ parser TheParser(packet_in packet, out headers hdr, inout metadata meta, inout s
   }
   
   state parse_sml {
-    packet.extract(hdr.sml)
-    transition accept
+    packet.extract(hdr.sml);
+    transition accept;
   }
   
 }
@@ -81,8 +87,11 @@ control TheIngress(inout headers hdr,
     bit<32> val2;
     bit<32> val3;
     bit<8> pkt_count;
+    bit<8> presence;
+    bit<8> updated_presence;
+    bit<8> expected_presence = 0b11111111;
+    bit<8> mask;
  
-
     action multicast(bit<16> mgid) {
         standard_metadata.mcast_grp = mgid;
     }
@@ -109,49 +118,47 @@ control TheIngress(inout headers hdr,
 
     apply {
         if (hdr.sml.isValid()) {
-
-            /* Read Currently Aggregated Values (Each Register: 1 Read / 0 Write)*/ 
             @atomic {
+            /* Read Currently Aggregated Values (Each Register: 1 Read / 0 Write)*/ 
                 counter_register.read(pkt_count, 0);
                 sum0_register.read(val0, 0);
                 sum1_register.read(val1, 0);
                 sum2_register.read(val2, 0);
                 sum3_register.read(val3, 0);
-            }
+
 
             /* Aggregate Chunk Values */
-            @atomic{                
+             
                 pkt_count = pkt_count + 1;
                 val0 = val0 + hdr.sml.val0;
                 val1 = val1 + hdr.sml.val1;
                 val2 = val2 + hdr.sml.val2;
                 val3 = val3 + hdr.sml.val3;
-            }
+
 
             if (pkt_count < NUM_WORKERS) {
 
                 /* Store the updated Values inside the Register and drop the packet (Each Register:  1 Read / 1 Write)*/
-                @atomic{
                     counter_register.write(0, pkt_count);
                     sum0_register.write(0, val0);
                     sum1_register.write(0, val1);
                     sum2_register.write(0, val2);
                     sum3_register.write(0, val3);
-                }
+
                 drop();
+
             } else {
                 
                 /* Update Header Data */
-                hdr.sml.val0 = val0;
-                hdr.sml.val1 = val1;
-                hdr.sml.val2 = val2;
-                hdr.sml.val3 = val3;
+                    hdr.sml.val0 = val0;
+                    hdr.sml.val1 = val1;
+                    hdr.sml.val2 = val2;
+                    hdr.sml.val3 = val3;
 
                 /* Send package to all Switches in MulticastGroup 1 */
                 multicast(1);
 
                 /* Reset All Registers (Each Register: 1 Read / 1 Write)*/
-                @atomic{
                     counter_register.write(0,0);
                     sum0_register.write(0,0);
                     sum1_register.write(0,0);
