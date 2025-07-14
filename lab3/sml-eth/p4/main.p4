@@ -120,6 +120,7 @@ control TheIngress(inout headers hdr,
         if (hdr.sml.isValid()) {
             @atomic {
                 presence_register_set.read(presence_register_altered,0);
+                presence_register.read(presence,0);
 
                 if (presence_register_altered == 0) {                                       /* The register has not yet been prepared */
                     
@@ -137,56 +138,56 @@ control TheIngress(inout headers hdr,
                 sum1_register.read(val1, 0);
                 sum2_register.read(val2, 0);
                 sum3_register.read(val3, 0);
+            }
 
 
             /* Aggregate Chunk Values */
-                val0 = val0 + hdr.sml.val0;
-                val1 = val1 + hdr.sml.val1;
-                val2 = val2 + hdr.sml.val2;
-                val3 = val3 + hdr.sml.val3;
+            log_msg("Starting new aggregation cycle: Initializing registers.");
+            val0 = val0 + hdr.sml.val0;
+            val1 = val1 + hdr.sml.val1;
+            val2 = val2 + hdr.sml.val2;
+            val3 = val3 + hdr.sml.val3;
 
-            /* Update Presence */
-                presence_register.read(presence,0);
 
-                if (starting_presence != 0b11111111) {                                        /* This has not been touched beforehand, meaning this is not the first packet of the current aggregation */
-                    presence = starting_presence;                                             /* Set the presence to the above calculated starting positino */
-                    starting_presence = 0b11111111;                                           /* Reset the update presence */
-                }
+            if (presence == 0) {                                        /* This has not been touched beforehand, meaning this is not the first packet of the current aggregation */
+            presence = starting_presence;                               /* Set the presence to the above calculated starting position */ 
+            }
 
-                mask = 0;
-                mask = mask_gen << hdr.sml.worker_rank-1;
-                presence = presence ^ mask;
-
+            mask = 0;
+            mask = mask_gen << hdr.sml.worker_rank;
+            presence = presence ^ mask;
 
             if (presence ^ expected_presence != 0) {
 
                 /* Store the updated Values inside the Register and drop the packet (Each Register:  1 Read / 1 Write)*/
+                @atomic{
                     presence_register.write(0, presence);
                     sum0_register.write(0, val0);
                     sum1_register.write(0, val1);
                     sum2_register.write(0, val2);
                     sum3_register.write(0, val3);
-
+                }
                 drop();
 
             } else {
                 
                 /* Update Header Data */
-                    hdr.sml.val0 = val0;
-                    hdr.sml.val1 = val1;
-                    hdr.sml.val2 = val2;
-                    hdr.sml.val3 = val3;
+                hdr.sml.val0 = val0;
+                hdr.sml.val1 = val1;
+                hdr.sml.val2 = val2;
+                hdr.sml.val3 = val3;
 
                 /* Send package to all Switches in MulticastGroup 1 */
                 multicast(1);
 
                 /* Reset All Registers (Each Register: 1 Read / 1 Write)*/
+                @atomic{
                     sum0_register.write(0,0);
                     sum1_register.write(0,0);
                     sum2_register.write(0,0);
                     sum3_register.write(0,0);
-                    presence_register_set.write(0,1);
-                    presence_register.write(0, 255); 
+                    presence_register_set.write(0,0);
+                    presence_register.write(0, 0); 
                 }
             }
         } else if (hdr.eth.isValid()) {

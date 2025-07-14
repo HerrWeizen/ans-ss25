@@ -66,7 +66,7 @@ def AllReduce(iface, rank, data, result):
         pkt = Ether(dst='ff:ff:ff:ff:ff:ff', src=mac, type=ETHERTYPE_SWITCHML) / SwitchML(workerType="SWITCH_ML", worker_rank=rank, val0 = chunk_to_send[0], val1 = chunk_to_send[1], val2 = chunk_to_send[2], val3 = chunk_to_send[3])
         Log(f"Chunk Sent: {chunk_to_send}")
 
-        response = srp1(pkt, iface=iface, timeout=10, verbose=False)
+        response = srp1(pkt, iface=iface, timeout=10, verbose=True)
 
         if response and response.haslayer(SwitchML):
             for index, value in enumerate(aggregated_chunk):
@@ -90,7 +90,7 @@ def main():
     Log("Started...")
     for i in range(NUM_ITER):
         Log(f"Iteration {i}")
-        num_elem = GenMultipleOfInRange(CHUNK_SIZE, 2048, CHUNK_SIZE)
+        num_elem = GenMultipleOfInRange(16, 16, CHUNK_SIZE)
         data_out = GenInts(num_elem)
         Log(f"Data Out: {data_out}")
         data_in = [0] * num_elem
