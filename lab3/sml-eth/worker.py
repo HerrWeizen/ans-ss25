@@ -36,7 +36,7 @@ class SwitchML(Packet):
             0: "FORWARD_ONLY",
             1: "SWITCH_ML"
         }),
-        ShortField("worker_rank", 0),
+        BitField("worker_rank", 0, 8),
         BitField("val0", 0, 32),
         BitField("val1", 0, 32),
         BitField("val2", 0, 32),
@@ -65,8 +65,8 @@ def AllReduce(iface, rank, data, result):
         
         pkt = Ether(dst='ff:ff:ff:ff:ff:ff', src=mac, type=ETHERTYPE_SWITCHML) / SwitchML(workerType="SWITCH_ML", worker_rank=rank, val0 = chunk_to_send[0], val1 = chunk_to_send[1], val2 = chunk_to_send[2], val3 = chunk_to_send[3])
         Log(f"Chunk Sent: {chunk_to_send}")
-        
-        response = srp1(pkt, iface=iface, timeout=4, verbose=False)
+
+        response = srp1(pkt, iface=iface, timeout=10, verbose=False)
 
         if response and response.haslayer(SwitchML):
             for index, value in enumerate(aggregated_chunk):
